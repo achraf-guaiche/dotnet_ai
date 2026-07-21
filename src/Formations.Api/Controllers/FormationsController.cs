@@ -41,18 +41,25 @@ public class FormationsController : ControllerBase
             query = query.Where(f => f.Titre.Contains(search) || (f.Description != null && f.Description.Contains(search)));
 
         var totalCount = await query.CountAsync(ct);
-        var formations = await query
+        // Projection en objet anonyme côté SQL (Niveau brut), puis mapping en mémoire :
+        // f.Niveau.ToString() n'est pas traduisible en SQL par EF Core.
+        var page1 = await query
             .OrderByDescending(f => f.CreatedAt)
             .Skip((page - 1) * pageSize)
             .Take(pageSize)
-            .Select(f => new FormationSummaryDto(
+            .Select(f => new
+            {
                 f.Id, f.Titre, f.ImageUrl,
-                f.Categorie.Nom,
-                f.Niveau.ToString(),
-                f.DureeHeures, f.Prix,
-                f.Inscriptions.Count,
-                f.Statut))
+                CategorieNom = f.Categorie.Nom,
+                f.Niveau, f.DureeHeures, f.Prix,
+                NbInscrits = f.Inscriptions.Count,
+                f.Statut
+            })
             .ToListAsync(ct);
+
+        var formations = page1.Select(f => new FormationSummaryDto(
+            f.Id, f.Titre, f.ImageUrl, f.CategorieNom, f.Niveau.ToString(),
+            f.DureeHeures, f.Prix, f.NbInscrits, f.Statut)).ToList();
 
         return Ok(PagedResult<FormationSummaryDto>.Create(formations, totalCount, page, pageSize));
     }

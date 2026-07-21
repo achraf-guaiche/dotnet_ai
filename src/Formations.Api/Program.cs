@@ -157,4 +157,24 @@ app.MapControllers();
 
 app.MapGet("/health", () => Results.Ok(new { status = "healthy", timestamp = DateTime.UtcNow }));
 
+// Configuration publique (non sensible) : fournisseur LLM/avatar actif + mode dev.
+// Consommée par la page d'accueil du frontend pour afficher le badge « Mode dev ».
+app.MapGet("/api/config", (IConfiguration cfg, IWebHostEnvironment env) =>
+{
+    var llmProvider = cfg["LLM:Provider"] ?? "claude";
+    var avatarProvider = cfg["AvatarIA:Provider"] ?? "mock";
+    var llmMock = string.IsNullOrEmpty(cfg["LLM:ApiKey"]);
+    var avatarMock = avatarProvider.ToLowerInvariant() == "mock" || string.IsNullOrEmpty(cfg["AvatarIA:ApiKey"]);
+    return Results.Ok(new
+    {
+        environment = env.EnvironmentName,
+        isDevMode = env.IsDevelopment(),
+        llmProvider,
+        llmModel = cfg["LLM:Model"],
+        llmMock,
+        avatarProvider,
+        avatarMock
+    });
+});
+
 app.Run();

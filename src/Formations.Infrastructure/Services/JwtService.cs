@@ -54,6 +54,8 @@ public class JwtService : IJwtService
         try
         {
             var tokenHandler = new JwtSecurityTokenHandler();
+            // Ne pas remapper 'sub' vers ClaimTypes.NameIdentifier : on relit bien 'sub'.
+            tokenHandler.MapInboundClaims = false;
             var key = Encoding.UTF8.GetBytes(_config["Jwt:Key"]!);
 
             var principal = tokenHandler.ValidateToken(token, new TokenValidationParameters

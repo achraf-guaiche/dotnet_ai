@@ -15,21 +15,23 @@ formations/
 │   ├── Formations.Application/     # Use cases, DTOs, interfaces, validators
 │   ├── Formations.Infrastructure/  # EF Core, MySQL, JWT, Email, Anam.ai, Claude API
 │   ├── Formations.Api/             # Web API ASP.NET Core, controllers, middleware
-│   └── Formations.Web/             # Frontend Blazor Server
+│   └── formations-web-react/       # Frontend React (Vite + TypeScript + Tailwind)
 ├── tests/
 │   └── Formations.Tests.Unit/      # Tests unitaires (xUnit + Moq + FluentAssertions)
 ├── docker-compose.yml
+├── docker-compose.dev.yml           # Override dev : hot-reload Vite pour le frontend
 ├── Dockerfile                       # API (multi-stage, .NET 8)
-├── Dockerfile.Web                   # Frontend Blazor
 ├── railway.toml                     # Config déploiement Railway
 └── .github/workflows/ci.yml        # GitHub Actions CI
 ```
+
+> Le frontend a son propre Dockerfile dans `src/formations-web-react/` (build Vite → nginx).
 
 ### Choix techniques justifiés
 
 | Décision | Choix | Justification |
 |---|---|---|
-| Frontend | Blazor Server | Mono-solution, partage des types C# avec le backend, SSR pour le SEO |
+| Frontend | React (Vite + TypeScript + Tailwind) | SPA découplée consommant l'API REST, écosystème riche, types TS miroir des DTOs C# |
 | Avatar IA | Anam.ai | SDK officiel, mode mock intégré, meilleure intégration web |
 | LLM dialogue | Claude API (Anthropic) | Meilleure qualité de réponse pédagogique, API simple |
 | ORM | EF Core + Pomelo | Support natif MySQL 8, migrations versionnées |
@@ -138,18 +140,30 @@ formations/
    - Swagger : `https://localhost:5001/swagger`
    - Health : `https://localhost:5001/health`
 
-7. **Lancer le frontend Blazor :**
-   ```bash
-   dotnet run --project src/Formations.Web
-   ```
-   - Web : `https://localhost:5003`
+7. **Lancer le frontend React (via Docker — rien à installer sur la machine) :**
 
-8. **(Optionnel) Lancer via Docker Compose (app + MySQL en un coup) :**
+   Le frontend est une SPA React. Il n'est **pas** nécessaire d'installer Node.js
+   sur votre machine : tout passe par Docker.
+
+   ```bash
+   # Build de production (nginx) — fait partie de docker compose up (voir étape 8)
+   docker compose up --build web
+
+   # OU en mode développement avec hot-reload Vite :
+   docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build web
+   ```
+   - Frontend (prod nginx) : `http://localhost:5002`
+   - Frontend (dev Vite)   : `http://localhost:3000`
+
+8. **(Recommandé) Lancer toute la stack via Docker Compose (API + MySQL + Frontend) :**
    ```bash
    docker compose up --build
    ```
    - API : `http://localhost:5000/swagger`
-   - Web : `http://localhost:5002`
+   - Frontend React : `http://localhost:5002`
+
+   > Le navigateur appelle l'API sur `http://localhost:5000`. Cette URL est figée au
+   > build du frontend via l'argument `VITE_API_URL` (voir `docker-compose.yml`).
 
 ---
 
@@ -368,7 +382,9 @@ dotnet test --collect:"XPlat Code Coverage"
 
 ## Roadmap / Backlog restant
 
-- [ ] Sprint 7 : Dashboard admin avec graphiques (Chart.js via JS Interop)
+- [x] Sprint 7 : Dashboard admin avec graphiques (barres CSS, sans dépendance)
+- [x] Migration du frontend Blazor Server → React (Vite + TypeScript + Tailwind)
+- [ ] Graphiques avancés (Recharts / Chart.js) sur le dashboard React
 - [ ] Upload fichiers (avatars, PDFs de cours) vers S3/Azure Blob
 - [ ] Notifications en temps réel (SignalR)
 - [ ] Mobile app (MAUI ou React Native)

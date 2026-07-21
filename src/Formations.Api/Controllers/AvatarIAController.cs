@@ -109,14 +109,18 @@ public class AvatarIAController : ControllerBase
     {
         var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
 
-        var sessions = await _context.SessionsAvatarIA
+        // Matérialisation d'abord : JsonSerializer.Deserialize (argument optionnel)
+        // ne peut pas figurer dans un arbre d'expression EF. Projection en mémoire ensuite.
+        var entities = await _context.SessionsAvatarIA
             .Include(s => s.Module)
             .Where(s => s.UserId == userId)
             .OrderByDescending(s => s.DateSession)
-            .Select(s => new SessionHistoriqueDto(
+            .ToListAsync(ct);
+
+        var sessions = entities.Select(s => new SessionHistoriqueDto(
                 s.Id, s.ModuleId, s.Module.Titre, s.DateSession, s.DateFin, s.DureeSecondes,
                 JsonSerializer.Deserialize<List<ChatMessageDto>>(s.Historique) ?? new()))
-            .ToListAsync(ct);
+            .ToList();
 
         return Ok(sessions);
     }

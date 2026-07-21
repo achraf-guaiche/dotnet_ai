@@ -9,6 +9,8 @@ public interface IAvatarIAService
     bool IsMockMode { get; }
 }
 
-public record AvatarSessionResult(string SessionId, string StreamUrl, string EmbedToken);
+// StreamUrl est nul pour les fournisseurs pilotés par SDK navigateur (Anam) :
+// le flux vidéo est ouvert côté client à partir du EmbedToken (session token).
+public record AvatarSessionResult(string SessionId, string? StreamUrl, string EmbedToken);
 
 public record ChatMessage(string Role, string Content, DateTime Timestamp);

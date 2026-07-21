@@ -7,6 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Microsoft.AspNetCore.Identity" Version="2.2.0" />
+    <!-- Fournit Microsoft.AspNetCore.Identity.IdentityUser pour .NET 8 -->
+    <PackageReference Include="Microsoft.Extensions.Identity.Stores" Version="8.0.11" />
   </ItemGroup>
 </Project>

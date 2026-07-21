@@ -37,34 +37,64 @@ public class AvatarIAService : IAvatarIAService
         }
 
         var provider = _config["AvatarIA:Provider"]?.ToLower();
-        return provider switch
+        try
         {
-            "anam" => await CreateAnamSessionAsync(textePresentation, ct),
-            "heygen" => await CreateHeyGenSessionAsync(textePresentation, ct),
-            _ => throw new InvalidOperationException($"Provider avatar inconnu : {provider}")
-        };
+            return provider switch
+            {
+                "anam" => await CreateAnamSessionAsync(textePresentation, ct),
+                "heygen" => await CreateHeyGenSessionAsync(textePresentation, ct),
+                _ => throw new InvalidOperationException($"Provider avatar inconnu : {provider}")
+            };
+        }
+        catch (Exception ex)
+        {
+            // Dégradation gracieuse : si le fournisseur échoue (clé invalide, quota, panne),
+            // on retombe sur une session simulée plutôt que de renvoyer une 500 à l'apprenant.
+            _logger.LogError(ex, "Échec de la création de session avatar ({Provider}) — repli en mode simulé", provider);
+            return new AvatarSessionResult(
+                SessionId: $"fallback-session-{Guid.NewGuid():N}",
+                StreamUrl: null,
+                EmbedToken: "");
+        }
     }
 
+    // Anam n'expose pas de « start session » : on échange la clé API contre un
+    // session token court (POST /v1/auth/session-token) que le SDK JS utilise côté navigateur.
     private async Task<AvatarSessionResult> CreateAnamSessionAsync(string textePresentation, CancellationToken ct)
     {
-        var request = new
-        {
-            persona_id = _config["AvatarIA:PersonaId"],
-            initial_message = textePresentation
-        };
+        var personaId = Cfg("AvatarIA:PersonaId");
+        object personaConfig = personaId is not null
+            ? new { id = personaId }
+            : new { name = "Formateur", systemPrompt = textePresentation };
+
+        var request = new { personaConfig };
 
         _httpClient.DefaultRequestHeaders.Clear();
         _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_config["AvatarIA:ApiKey"]}");
 
-        var response = await _httpClient.PostAsJsonAsync(
-            $"{_config["AvatarIA:BaseUrl"]}/sessions/start", request, ct);
-        response.EnsureSuccessStatusCode();
+        var baseUrl = (Cfg("AvatarIA:BaseUrl") ?? "https://api.anam.ai/v1").TrimEnd('/');
+        var response = await _httpClient.PostAsJsonAsync($"{baseUrl}/auth/session-token", request, ct);
+
+        if (!response.IsSuccessStatusCode)
+        {
+            var errorBody = await response.Content.ReadAsStringAsync(ct);
+            _logger.LogError("Anam a répondu {Status} : {Body}", (int)response.StatusCode, errorBody);
+            response.EnsureSuccessStatusCode();
+        }
 
         var result = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+        var sessionToken = result.TryGetProperty("sessionToken", out var st) ? st.GetString()
+            : result.TryGetProperty("session_token", out var st2) ? st2.GetString()
+            : null;
+
+        if (string.IsNullOrEmpty(sessionToken))
+            throw new InvalidOperationException("Anam n'a pas renvoyé de sessionToken.");
+
+        // Pas d'URL de stream : le navigateur ouvre le flux via le SDK Anam avec ce token.
         return new AvatarSessionResult(
-            SessionId: result.GetProperty("session_id").GetString()!,
-            StreamUrl: result.GetProperty("stream_url").GetString()!,
-            EmbedToken: result.TryGetProperty("embed_token", out var t) ? t.GetString()! : "");
+            SessionId: $"anam-{Guid.NewGuid():N}",
+            StreamUrl: null,
+            EmbedToken: sessionToken);
     }
 
     private async Task<AvatarSessionResult> CreateHeyGenSessionAsync(string textePresentation, CancellationToken ct)
@@ -97,50 +127,118 @@ public class AvatarIAService : IAvatarIAService
         IEnumerable<ChatMessage> history,
         CancellationToken ct = default)
     {
-        if (IsMockMode)
+        var provider = (_config["LLM:Provider"] ?? "claude").ToLowerInvariant();
+        var apiKey = _config["LLM:ApiKey"];
+
+        // Mode dev / mock : aucune clé LLM configurée → réponse simulée (aucun appel externe).
+        if (string.IsNullOrEmpty(apiKey))
         {
-            _logger.LogInformation("[MOCK] Réponse IA simulée pour : {Message}", userMessage);
+            _logger.LogInformation("[MOCK LLM:{Provider}] Réponse IA simulée pour : {Message}", provider, userMessage);
             await Task.Delay(500, ct);
-            return $"[Réponse simulée] J'ai bien reçu votre question : « {userMessage} ». " +
-                   "Dans un environnement de production avec la vraie clé API Claude, " +
-                   "je répondrais en me basant sur le contexte du module.";
+            return $"[Réponse simulée · fournisseur « {provider} »] J'ai bien reçu votre question : " +
+                   $"« {userMessage} ». Avec une vraie clé API {provider}, je répondrais en me basant " +
+                   "sur le contexte du module.";
         }
 
-        var apiKey = _config["LLM:ApiKey"];
-        var model = _config["LLM:Model"] ?? "claude-sonnet-4-6";
+        var systemPrompt = $"""
+            Tu es un formateur IA expert et pédagogue. Tu réponds aux questions des apprenants
+            sur le module suivant : {moduleContext}
+
+            Règles :
+            - Réponds en français, de façon claire et concise
+            - Adapte ton niveau à l'apprenant
+            - Si la question est hors sujet, redirige poliment vers le contenu du module
+            - Tes réponses seront lues par un avatar IA, donc évite les formatages markdown complexes
+            """;
+
+        return provider switch
+        {
+            "claude" => await CallAnthropicAsync(userMessage, systemPrompt, history, apiKey!, ct),
+            "google" => await CallGoogleAsync(userMessage, systemPrompt, history, apiKey!, ct),
+            // openai, groq et « llm » (passerelle générique) partagent l'API OpenAI Chat Completions.
+            "openai" or "groq" or "llm" => await CallOpenAiCompatibleAsync(provider, userMessage, systemPrompt, history, apiKey!, ct),
+            _ => throw new InvalidOperationException($"Fournisseur LLM inconnu : {provider}")
+        };
+    }
+
+    // Lit une clé de config en traitant la chaîne vide (env var non renseignée) comme absente.
+    private string? Cfg(string key) => string.IsNullOrWhiteSpace(_config[key]) ? null : _config[key];
+
+    // ── Anthropic (Claude) : POST /v1/messages ────────────────────────────────
+    private async Task<string> CallAnthropicAsync(string userMessage, string system, IEnumerable<ChatMessage> history, string apiKey, CancellationToken ct)
+    {
+        var baseUrl = Cfg("LLM:BaseUrl") ?? "https://api.anthropic.com";
+        var model = Cfg("LLM:Model") ?? "claude-sonnet-4-6";
 
         var messages = new List<object>();
-        foreach (var msg in history.TakeLast(10))
-            messages.Add(new { role = msg.Role, content = msg.Content });
+        foreach (var msg in history.TakeLast(10)) messages.Add(new { role = msg.Role, content = msg.Content });
         messages.Add(new { role = "user", content = userMessage });
 
-        var requestBody = new
-        {
-            model,
-            max_tokens = 1024,
-            system = $"""
-                Tu es un formateur IA expert et pédagogue. Tu réponds aux questions des apprenants
-                sur le module suivant : {moduleContext}
-
-                Règles :
-                - Réponds en français, de façon claire et concise
-                - Adapte ton niveau à l'apprenant
-                - Si la question est hors sujet, redirige poliment vers le contenu du module
-                - Tes réponses seront lues par un avatar IA, donc évite les formatages markdown complexes
-                """,
-            messages
-        };
-
-        using var request = new HttpRequestMessage(HttpMethod.Post, "https://api.anthropic.com/v1/messages");
+        var body = new { model, max_tokens = 1024, system, messages };
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v1/messages");
         request.Headers.Add("x-api-key", apiKey);
         request.Headers.Add("anthropic-version", "2023-06-01");
-        request.Content = new StringContent(JsonSerializer.Serialize(requestBody), Encoding.UTF8, "application/json");
+        request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
 
         var response = await _httpClient.SendAsync(request, ct);
         response.EnsureSuccessStatusCode();
-
         var result = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
         return result.GetProperty("content")[0].GetProperty("text").GetString() ?? "Je n'ai pas pu générer une réponse.";
+    }
+
+    // ── OpenAI / Groq / passerelle générique : POST /v1/chat/completions ───────
+    private async Task<string> CallOpenAiCompatibleAsync(string provider, string userMessage, string system, IEnumerable<ChatMessage> history, string apiKey, CancellationToken ct)
+    {
+        var baseUrl = Cfg("LLM:BaseUrl") ?? provider switch
+        {
+            "groq" => "https://api.groq.com/openai",
+            "openai" => "https://api.openai.com",
+            _ => throw new InvalidOperationException("LLM:BaseUrl requis pour le fournisseur « llm ».")
+        };
+        var model = Cfg("LLM:Model") ?? provider switch
+        {
+            "groq" => "llama-3.3-70b-versatile",
+            _ => "gpt-4o-mini"
+        };
+
+        var messages = new List<object> { new { role = "system", content = system } };
+        foreach (var msg in history.TakeLast(10)) messages.Add(new { role = msg.Role, content = msg.Content });
+        messages.Add(new { role = "user", content = userMessage });
+
+        var body = new { model, max_tokens = 1024, messages };
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v1/chat/completions");
+        request.Headers.Add("Authorization", $"Bearer {apiKey}");
+        request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+        return result.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? "Je n'ai pas pu générer une réponse.";
+    }
+
+    // ── Google Gemini : POST /v1beta/models/{model}:generateContent ───────────
+    private async Task<string> CallGoogleAsync(string userMessage, string system, IEnumerable<ChatMessage> history, string apiKey, CancellationToken ct)
+    {
+        var baseUrl = Cfg("LLM:BaseUrl") ?? "https://generativelanguage.googleapis.com";
+        var model = Cfg("LLM:Model") ?? "gemini-1.5-flash";
+
+        var contents = new List<object>();
+        foreach (var msg in history.TakeLast(10))
+            contents.Add(new { role = msg.Role == "assistant" ? "model" : "user", parts = new[] { new { text = msg.Content } } });
+        contents.Add(new { role = "user", parts = new[] { new { text = userMessage } } });
+
+        var body = new
+        {
+            system_instruction = new { parts = new[] { new { text = system } } },
+            contents
+        };
+        using var request = new HttpRequestMessage(HttpMethod.Post, $"{baseUrl}/v1beta/models/{model}:generateContent?key={apiKey}");
+        request.Content = new StringContent(JsonSerializer.Serialize(body), Encoding.UTF8, "application/json");
+
+        var response = await _httpClient.SendAsync(request, ct);
+        response.EnsureSuccessStatusCode();
+        var result = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+        return result.GetProperty("candidates")[0].GetProperty("content").GetProperty("parts")[0].GetProperty("text").GetString() ?? "Je n'ai pas pu générer une réponse.";
     }
 
     public async Task<string> TextToAvatarSpeechAsync(string text, string sessionId, CancellationToken ct = default)

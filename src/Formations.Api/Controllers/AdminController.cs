@@ -44,7 +44,7 @@ public class AdminController : ControllerBase
             .Select(f => new FormationStatDto(
                 f.Id, f.Titre,
                 f.Inscriptions.Count,
-                f.Inscriptions.Any() ? f.Inscriptions.Average(i => (double)i.ProgressionPourcent) : 0))
+                f.Inscriptions.Any() ? f.Inscriptions.Average(i => i.ProgressionPourcent) : 0m))
             .ToListAsync(ct);
 
         var recentInscriptions = await _context.Inscriptions

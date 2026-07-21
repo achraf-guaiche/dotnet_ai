@@ -1,0 +1,18 @@
+# Override de développement pour le frontend React avec hot-reload Vite.
+# Usage : docker compose -f docker-compose.yml -f docker-compose.dev.yml up --build
+#
+# Le code source est monté depuis l'hôte, mais node_modules reste dans un volume
+# conteneur (jamais installé sur la machine hôte).
+services:
+  web:
+    build:
+      context: ./src/formations-web-react
+      dockerfile: Dockerfile.dev
+    ports:
+      - "3000:3000"
+    environment:
+      - VITE_API_URL=http://localhost:5000
+    volumes:
+      - ./src/formations-web-react:/app
+      - /app/node_modules
+    command: npm run dev -- --host 0.0.0.0

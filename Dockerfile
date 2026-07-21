@@ -26,6 +26,10 @@ RUN dotnet publish "Formations.Api.csproj" -c Release -o /app/publish \
 FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
 WORKDIR /app
 
+# curl est requis par le HEALTHCHECK (absent de l'image aspnet par défaut)
+RUN apt-get update && apt-get install -y --no-install-recommends curl \
+    && rm -rf /var/lib/apt/lists/*
+
 # Créer un utilisateur non-root pour la sécurité
 RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app
 USER appuser

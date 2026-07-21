@@ -12,7 +12,7 @@ services:
       MYSQL_USER: ${MYSQL_USER:-formations_user}
       MYSQL_PASSWORD: ${MYSQL_PASSWORD:-UserPasswordFort!}
     ports:
-      - "3306:3306"
+      - "33006:3306"
     volumes:
       - mysql_data:/var/lib/mysql
       - ./docker/mysql/init.sql:/docker-entrypoint-initdb.d/init.sql:ro
@@ -36,13 +36,25 @@ services:
       - "5000:8080"
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
+      # port=3306 : port INTERNE du conteneur mysql (le mapping hôte 33006 ne concerne pas le réseau Docker)
       - ConnectionStrings__Default=server=mysql;port=3306;database=${MYSQL_DATABASE:-formations_db};user=${MYSQL_USER:-formations_user};password=${MYSQL_PASSWORD:-UserPasswordFort!};AllowPublicKeyRetrieval=true;SslMode=none
       - Jwt__Key=${Jwt__Key:-CHANGEME_DEV_KEY_MIN_32_CHARS_XXXXXXXXX}
       - Jwt__Issuer=${Jwt__Issuer:-FormationsPlatform}
       - Jwt__Audience=${Jwt__Audience:-FormationsUsers}
       - AvatarIA__Provider=${AvatarIA__Provider:-mock}
       - AvatarIA__ApiKey=${AvatarIA__ApiKey:-}
+      # ── Choix du fournisseur LLM (moteur de dialogue du formateur IA) ──────────
+      # Valeurs possibles : claude | openai | google | groq | llm
+      #  - claude  → API Anthropic (Messages)
+      #  - openai  → API OpenAI (Chat Completions)
+      #  - google  → API Google Gemini
+      #  - groq    → API Groq (compatible OpenAI)
+      #  - llm     → passerelle générique compatible OpenAI (nécessite LLM__BaseUrl)
+      # Sans LLM__ApiKey, le mode dev (réponses simulées) reste actif.
+      - LLM__Provider=${LLM__Provider:-claude}
       - LLM__ApiKey=${LLM__ApiKey:-}
+      - LLM__Model=${LLM__Model:-}
+      - LLM__BaseUrl=${LLM__BaseUrl:-}
       - Email__Host=${Email__Host:-smtp.gmail.com}
       - Email__Username=${Email__Username:-}
       - Email__Password=${Email__Password:-}
@@ -61,18 +73,19 @@ services:
       timeout: 10s
       retries: 5
 
-  # ── Blazor Web Frontend ──────────────────────────────────────────────────────
+  # ── React Web Frontend (Vite + TypeScript + Tailwind) ────────────────────────
+  # Servi par nginx sur http://localhost:5002. Le navigateur appelle l'API sur
+  # http://localhost:5000 (VITE_API_URL est figée au build, voir Dockerfile).
   web:
     build:
-      context: .
-      dockerfile: Dockerfile.Web
+      context: ./src/formations-web-react
+      dockerfile: Dockerfile
+      args:
+        VITE_API_URL: ${VITE_API_URL:-http://localhost:5000}
     container_name: formations-web
     restart: unless-stopped
     ports:
       - "5002:8080"
-    environment:
-      - ASPNETCORE_ENVIRONMENT=Development
-      - ApiBaseUrl=http://api:8080
     depends_on:
       api:
         condition: service_healthy

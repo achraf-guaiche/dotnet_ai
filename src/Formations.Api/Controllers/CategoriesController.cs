@@ -21,10 +21,9 @@ public class CategoriesController : ControllerBase
     public async Task<IActionResult> GetAll(CancellationToken ct)
     {
         var categories = await _context.Categories
-            .Include(c => c.Formations)
+            .OrderBy(c => c.Nom)
             .Select(c => new CategorieDto(c.Id, c.Nom, c.Description, c.Icone,
                 c.Formations.Count(f => f.Statut == Domain.Enums.StatutFormation.Publie)))
-            .OrderBy(c => c.Nom)
             .ToListAsync(ct);
 
         return Ok(categories);

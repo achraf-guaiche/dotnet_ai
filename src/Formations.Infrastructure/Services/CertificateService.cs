@@ -20,7 +20,7 @@ public class CertificateService : ICertificateService
             {
                 page.Size(PageSizes.A4.Landscape());
                 page.Margin(30);
-                page.Background().Rectangle().FillColor("#F8FAFC");
+                page.Background().Background("#F8FAFC");
 
                 page.Content().Column(col =>
                 {
