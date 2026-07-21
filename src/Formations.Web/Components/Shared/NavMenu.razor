@@ -1,0 +1,38 @@
+@inject AuthenticationStateProvider AuthState
+@inject NavigationManager Nav
+@inject Formations.Web.Services.AuthWebService AuthService
+
+<nav class="navbar">
+    <div class="navbar-brand">
+        <a href="/">
+            <span class="brand-icon">🎓</span>
+            <span class="brand-text">Formations Pro</span>
+        </a>
+    </div>
+
+    <div class="navbar-menu">
+        <a href="/formations" class="nav-link">Formations</a>
+        <AuthorizeView>
+            <Authorized>
+                <a href="/mes-formations" class="nav-link">Mes formations</a>
+                <AuthorizeView Roles="Admin">
+                    <a href="/admin/dashboard" class="nav-link">Administration</a>
+                </AuthorizeView>
+                <a href="/profil" class="nav-link">Profil</a>
+                <button class="btn btn-outline" @onclick="LogoutAsync">Déconnexion</button>
+            </Authorized>
+            <NotAuthorized>
+                <a href="/connexion" class="btn btn-outline">Connexion</a>
+                <a href="/inscription" class="btn btn-primary">S'inscrire</a>
+            </NotAuthorized>
+        </AuthorizeView>
+    </div>
+</nav>
+
+@code {
+    private async Task LogoutAsync()
+    {
+        await AuthService.LogoutAsync();
+        Nav.NavigateTo("/", forceLoad: true);
+    }
+}

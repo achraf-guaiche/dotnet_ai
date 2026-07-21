@@ -1,0 +1,27 @@
+@using Formations.Web.Services
+
+<div class="formation-card">
+    @if (!string.IsNullOrEmpty(Formation.ImageUrl))
+    {
+        <img src="@Formation.ImageUrl" alt="@Formation.Titre" class="card-image" />
+    }
+    else
+    {
+        <div class="card-image-placeholder">🎓</div>
+    }
+
+    <div class="card-body">
+        <span class="badge badge-niveau">@Formation.NiveauLabel</span>
+        <h3 class="card-title">@Formation.Titre</h3>
+        <p class="card-meta">@Formation.CategorieNom • @Formation.DureeHeures h</p>
+        <div class="card-footer">
+            <span class="card-price">@(Formation.Prix == 0 ? "Gratuit" : $"{Formation.Prix:C}")</span>
+            <span class="card-inscrits">@Formation.NbInscrits inscrits</span>
+        </div>
+    </div>
+    <a href="/formations/@Formation.Id" class="card-link" aria-label="Voir @Formation.Titre"></a>
+</div>
+
+@code {
+    [Parameter, EditorRequired] public FormationSummary Formation { get; set; } = null!;
+}

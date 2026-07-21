@@ -1,0 +1,175 @@
+@page "/formations/{Id:int}"
+@inject FormationWebService FormationService
+@inject NavigationManager Nav
+
+<PageTitle>@(_formation?.Titre ?? "Chargement...")</PageTitle>
+
+@if (_isLoading)
+{
+    <div class="loading-spinner"><div class="spinner"></div></div>
+}
+else if (_formation == null)
+{
+    <div class="empty-state">
+        <span class="empty-icon">❌</span>
+        <p>Formation introuvable.</p>
+        <a href="/formations" class="btn btn-primary">Retour aux formations</a>
+    </div>
+}
+else
+{
+    <div class="formation-detail">
+        <div class="formation-hero" style="background-image: url('@(_formation.ImageUrl ?? "")')">
+            <div class="formation-hero-overlay">
+                <div class="container">
+                    <nav class="breadcrumb">
+                        <a href="/">Accueil</a> &rsaquo;
+                        <a href="/formations">Formations</a> &rsaquo;
+                        <span>@_formation.Titre</span>
+                    </nav>
+                    <h1>@_formation.Titre</h1>
+                    <div class="formation-meta">
+                        <span class="badge badge-niveau">@_formation.NiveauLabel</span>
+                        <span>📁 @_formation.CategorieNom</span>
+                        <span>⏱️ @_formation.DureeHeures heures</span>
+                        <span>👥 @_formation.NbInscrits inscrits</span>
+                        <span>📦 @_formation.NbModules modules</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="formation-content container">
+            <div class="formation-main">
+                @if (!string.IsNullOrEmpty(_formation.Description))
+                {
+                    <section class="content-section">
+                        <h2>À propos de cette formation</h2>
+                        <p>@_formation.Description</p>
+                    </section>
+                }
+
+                @if (!string.IsNullOrEmpty(_formation.Objectifs))
+                {
+                    <section class="content-section">
+                        <h2>Objectifs pédagogiques</h2>
+                        <p>@_formation.Objectifs</p>
+                    </section>
+                }
+
+                @if (!string.IsNullOrEmpty(_formation.Prerequis))
+                {
+                    <section class="content-section">
+                        <h2>Prérequis</h2>
+                        <p>@_formation.Prerequis</p>
+                    </section>
+                }
+
+                <section class="content-section">
+                    <h2>Contenu (@_formation.NbModules modules)</h2>
+                    <div class="modules-list">
+                        @foreach (var module in _formation.Modules.OrderBy(m => m.Ordre))
+                        {
+                            <div class="module-item">
+                                <div class="module-icon">@(module.HasCours ? "📖" : "📝")</div>
+                                <div class="module-info">
+                                    <span class="module-title">@module.Titre</span>
+                                </div>
+                                <AuthorizeView>
+                                    <Authorized>
+                                        @if (_isInscrit)
+                                        {
+                                            <div class="module-actions">
+                                                <a href="/modules/@module.Id" class="btn btn-outline btn-sm">Voir le cours</a>
+                                                <a href="/modules/@module.Id/avatar" class="btn btn-primary btn-sm">🤖 Formateur IA</a>
+                                            </div>
+                                        }
+                                    </Authorized>
+                                </AuthorizeView>
+                            </div>
+                        }
+                    </div>
+                </section>
+            </div>
+
+            <div class="formation-sidebar">
+                <div class="enroll-card">
+                    <div class="price-display">
+                        @if (_formation.Prix == 0)
+                        {
+                            <span class="price-free">GRATUIT</span>
+                        }
+                        else
+                        {
+                            <span class="price-amount">@_formation.Prix.ToString("C")</span>
+                        }
+                    </div>
+
+                    <AuthorizeView>
+                        <Authorized>
+                            @if (_isInscrit)
+                            {
+                                <div class="enrolled-badge">✅ Déjà inscrit</div>
+                                <a href="/mes-formations" class="btn btn-outline btn-block">Voir ma progression</a>
+                            }
+                            else
+                            {
+                                <button class="btn btn-primary btn-block btn-lg" @onclick="InscrireAsync" disabled="@_isEnrolling">
+                                    @if (_isEnrolling) { <span class="spinner-sm"></span> }
+                                    S'inscrire maintenant
+                                </button>
+                            }
+                        </Authorized>
+                        <NotAuthorized>
+                            <a href="/connexion?returnUrl=/formations/@_formation.Id" class="btn btn-primary btn-block btn-lg">
+                                Se connecter pour s'inscrire
+                            </a>
+                            <a href="/inscription" class="btn btn-outline btn-block" style="margin-top:.5rem">
+                                Créer un compte gratuit
+                            </a>
+                        </NotAuthorized>
+                    </AuthorizeView>
+
+                    <ul class="formation-includes">
+                        <li>📦 @_formation.NbModules modules de cours</li>
+                        <li>⏱️ @_formation.DureeHeures heures de contenu</li>
+                        <li>🤖 Formateur IA disponible 24h/24</li>
+                        <li>📜 Certificat de réussite</li>
+                        <li>♾️ Accès à vie</li>
+                    </ul>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private FormationDetail? _formation;
+    private bool _isLoading = true;
+    private bool _isInscrit;
+    private bool _isEnrolling;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _formation = await FormationService.GetFormationAsync(Id);
+
+        var mesForms = await FormationService.GetMesFormationsAsync();
+        _isInscrit = mesForms?.Any(i => i.FormationId == Id) == true;
+
+        _isLoading = false;
+    }
+
+    private async Task InscrireAsync()
+    {
+        _isEnrolling = true;
+        var success = await FormationService.InscrireAsync(Id);
+        if (success)
+        {
+            _isInscrit = true;
+            Nav.NavigateTo("/mes-formations");
+        }
+        _isEnrolling = false;
+    }
+}

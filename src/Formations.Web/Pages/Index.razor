@@ -1,0 +1,77 @@
+@page "/"
+@inject FormationWebService FormationService
+
+<PageTitle>Plateforme Formations — Accueil</PageTitle>
+
+<section class="hero">
+    <div class="hero-content">
+        <h1>Apprenez avec les meilleurs formateurs</h1>
+        <p>Accédez à des formations de qualité, avec un formateur IA disponible 24h/24.</p>
+        <div class="hero-actions">
+            <a href="/formations" class="btn btn-primary btn-lg">Explorer les formations</a>
+            <a href="/inscription" class="btn btn-outline btn-lg">Commencer gratuitement</a>
+        </div>
+    </div>
+    <div class="hero-stats">
+        <div class="stat-card">
+            <span class="stat-number">@_totalFormations+</span>
+            <span class="stat-label">Formations</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">@_totalApprenants+</span>
+            <span class="stat-label">Apprenants</span>
+        </div>
+        <div class="stat-card">
+            <span class="stat-number">IA</span>
+            <span class="stat-label">Formateur 24h/24</span>
+        </div>
+    </div>
+</section>
+
+@if (_categories is not null)
+{
+    <section class="categories-section">
+        <h2>Explorez par catégorie</h2>
+        <div class="categories-grid">
+            @foreach (var cat in _categories)
+            {
+                <a href="/formations?categorieId=@cat.Id" class="category-card">
+                    <span class="category-icon">@cat.Icone</span>
+                    <span class="category-name">@cat.Nom</span>
+                    <span class="category-count">@cat.NbFormations formations</span>
+                </a>
+            }
+        </div>
+    </section>
+}
+
+@if (_featuredFormations is not null)
+{
+    <section class="featured-section">
+        <h2>Formations populaires</h2>
+        <div class="formations-grid">
+            @foreach (var f in _featuredFormations.Items.Take(6))
+            {
+                <FormationCard Formation="f" />
+            }
+        </div>
+        <div class="section-footer">
+            <a href="/formations" class="btn btn-outline">Voir toutes les formations</a>
+        </div>
+    </section>
+}
+
+@code {
+    private List<CategorieItem>? _categories;
+    private FormationsPage? _featuredFormations;
+    private int _totalFormations;
+    private int _totalApprenants;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _categories = await FormationService.GetCategoriesAsync();
+        _featuredFormations = await FormationService.GetFormationsAsync(1, 6);
+        _totalFormations = _featuredFormations?.TotalCount ?? 0;
+        _totalApprenants = (_totalFormations * 12);
+    }
+}

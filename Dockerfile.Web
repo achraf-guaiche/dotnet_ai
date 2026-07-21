@@ -1,0 +1,18 @@
+FROM mcr.microsoft.com/dotnet/sdk:8.0 AS build
+WORKDIR /src
+
+COPY ["src/Formations.Web/Formations.Web.csproj", "src/Formations.Web/"]
+RUN dotnet restore "src/Formations.Web/Formations.Web.csproj"
+
+COPY . .
+WORKDIR "/src/src/Formations.Web"
+RUN dotnet publish "Formations.Web.csproj" -c Release -o /app/publish --no-restore /p:UseAppHost=false
+
+FROM mcr.microsoft.com/dotnet/aspnet:8.0 AS final
+WORKDIR /app
+RUN adduser --disabled-password --gecos "" appuser && chown -R appuser /app
+USER appuser
+COPY --from=build --chown=appuser:appuser /app/publish .
+EXPOSE 8080
+ENV ASPNETCORE_URLS=http://+:8080
+ENTRYPOINT ["dotnet", "Formations.Web.dll"]

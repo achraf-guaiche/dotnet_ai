@@ -1,0 +1,109 @@
+@page "/mes-formations"
+@attribute [Microsoft.AspNetCore.Authorization.Authorize]
+@inject FormationWebService FormationService
+@inject IJSRuntime JS
+
+<PageTitle>Mes Formations</PageTitle>
+
+<div class="page-header">
+    <h1>Mes formations</h1>
+</div>
+
+@if (_isLoading)
+{
+    <div class="loading-spinner"><div class="spinner"></div></div>
+}
+else if (_inscriptions?.Any() == true)
+{
+    <div class="mes-formations-grid">
+        @foreach (var i in _inscriptions)
+        {
+            <div class="inscription-card">
+                @if (!string.IsNullOrEmpty(i.FormationImage))
+                {
+                    <img src="@i.FormationImage" alt="@i.FormationTitre" class="card-image" />
+                }
+                else
+                {
+                    <div class="card-image-placeholder">🎓</div>
+                }
+
+                <div class="card-body">
+                    <h3 class="card-title">@i.FormationTitre</h3>
+
+                    <div class="progress-container">
+                        <div class="progress-header">
+                            <span>Progression</span>
+                            <span>@i.ProgressionPourcent%</span>
+                        </div>
+                        <div class="progress-bar">
+                            <div class="progress-fill" style="width: @i.ProgressionPourcent%"></div>
+                        </div>
+                        <small>@i.ModulesCompletes / @i.TotalModules modules terminés</small>
+                    </div>
+
+                    <div class="statut-badge @GetStatutClass(i.Statut)">@GetStatutLabel(i.Statut)</div>
+
+                    <div class="card-actions">
+                        <a href="/formations/@i.FormationId" class="btn btn-outline btn-sm">Voir la formation</a>
+                        @if (i.Statut == "Termine" || i.Statut == "Certifie")
+                        {
+                            <button class="btn btn-primary btn-sm" @onclick="() => DownloadCertificate(i.Id, i.FormationTitre)">
+                                📜 Certificat
+                            </button>
+                        }
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+}
+else
+{
+    <div class="empty-state">
+        <span class="empty-icon">📚</span>
+        <p>Vous n'êtes encore inscrit à aucune formation.</p>
+        <a href="/formations" class="btn btn-primary">Explorer les formations</a>
+    </div>
+}
+
+@code {
+    private List<InscriptionItem>? _inscriptions;
+    private bool _isLoading = true;
+
+    protected override async Task OnInitializedAsync()
+    {
+        _inscriptions = await FormationService.GetMesFormationsAsync();
+        _isLoading = false;
+    }
+
+    private async Task DownloadCertificate(int inscriptionId, string formationTitle)
+    {
+        var bytes = await FormationService.GetCertificateAsync(inscriptionId);
+        if (bytes != null)
+        {
+            var base64 = Convert.ToBase64String(bytes);
+            await JS.InvokeVoidAsync("downloadFile",
+                $"certificat_{formationTitle.Replace(" ", "_")}.pdf",
+                "application/pdf",
+                base64);
+        }
+    }
+
+    private static string GetStatutClass(string statut) => statut switch
+    {
+        "Termine" or "Certifie" => "badge-success",
+        "EnCours" => "badge-niveau",
+        "Abandonne" => "badge-warning",
+        _ => ""
+    };
+
+    private static string GetStatutLabel(string statut) => statut switch
+    {
+        "Termine" => "✅ Terminé",
+        "Certifie" => "🏆 Certifié",
+        "EnCours" => "📖 En cours",
+        "Abandonne" => "⏸️ Abandonné",
+        _ => statut
+    };
+}
