@@ -197,6 +197,40 @@ export interface Inscription {
   numeroCertificat?: string | null;
 }
 
+// ── Quiz / Examen ───────────────────────────────────────────────────────────
+export interface QuestionQuiz {
+  id: number;
+  enonce: string;
+  choix: string[];
+  points: number;
+  ordre: number;
+}
+
+export interface ExamenDetail {
+  examen: ExamenDto;
+  questions: QuestionQuiz[];
+}
+
+export interface QuestionReview {
+  questionId: number;
+  enonce: string;
+  userAnswer: string;
+  bonneReponse: string;
+  explication?: string | null;
+  isCorrect: boolean;
+  points: number;
+}
+
+export interface ExamenAttemptResult {
+  score: number;
+  isReussi: boolean;
+  correctCount: number;
+  totalQuestions: number;
+  tentativeNumero: number;
+  detailsParQuestion: Record<number, boolean>;
+  review: QuestionReview[];
+}
+
 // ── Avatar IA ───────────────────────────────────────────────────────────────
 export interface StartSessionResponse {
   sessionId: string;
@@ -204,6 +238,7 @@ export interface StartSessionResponse {
   embedToken?: string | null;
   isMockMode: boolean;
   dbSessionId: number;
+  initialMessage: string;
 }
 
 export interface SendMessageResponse {

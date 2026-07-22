@@ -72,7 +72,15 @@ public record UpdateExamenRequest(string Titre, string? Description, int DureeMi
 public record CreateQuestionQuizRequest(int ExamenId, string Enonce, List<string> Choix, string BonneReponse, string? Explication, int Points, int Ordre);
 
 public record ExamenAttemptRequest(int ExamenId, Dictionary<int, string> Reponses, int DureeSecondes);
-public record ExamenAttemptResult(decimal Score, bool IsReussi, int CorrectCount, int TotalQuestions, int TentativeNumero, Dictionary<int, bool> DetailsParQuestion);
+
+public record QuestionReviewDto(
+    int QuestionId, string Enonce, string UserAnswer,
+    string BonneReponse, string? Explication, bool IsCorrect, int Points);
+
+public record ExamenAttemptResult(
+    decimal Score, bool IsReussi, int CorrectCount, int TotalQuestions,
+    int TentativeNumero, Dictionary<int, bool> DetailsParQuestion,
+    List<QuestionReviewDto> Review);
 
 public class CreateModuleValidator : AbstractValidator<CreateModuleRequest>
 {

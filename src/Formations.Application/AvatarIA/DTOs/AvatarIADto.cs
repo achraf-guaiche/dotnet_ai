@@ -7,7 +7,8 @@ public record StartSessionResponse(
     string? StreamUrl,
     string? EmbedToken,
     bool IsMockMode,
-    int DbSessionId
+    int DbSessionId,
+    string InitialMessage
 );
 
 public record SendMessageRequest(string SessionId, int DbSessionId, string Message);

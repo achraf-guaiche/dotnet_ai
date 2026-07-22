@@ -8,6 +8,7 @@ import { MesFormations } from './pages/MesFormations';
 import { Login } from './pages/Login';
 import { Register } from './pages/Register';
 import { AvatarSession } from './pages/AvatarSession';
+import { ModuleLearn } from './pages/ModuleLearn';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminUsers } from './pages/AdminUsers';
 import { GestionFormations } from './pages/GestionFormations';
@@ -29,6 +30,14 @@ export default function App() {
           element={
             <ProtectedRoute>
               <MesFormations />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/modules/:moduleId/apprendre"
+          element={
+            <ProtectedRoute>
+              <ModuleLearn />
             </ProtectedRoute>
           }
         />

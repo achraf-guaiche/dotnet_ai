@@ -39,12 +39,20 @@ public class AvatarIAController : ControllerBase
 
         var avatarSession = await _avatarService.CreateSessionAsync(texte, ct);
 
+        var greetingMsg = $"Bonjour ! Je suis votre formateur IA pour le module « {module.Titre} ». " +
+                          "Posez-moi vos questions sur le contenu du cours, les exercices ou toute notion du module.";
+
+        var initialHistory = new List<Formations.Application.Common.Interfaces.ChatMessage>
+        {
+            new("assistant", greetingMsg, DateTime.UtcNow)
+        };
+
         var dbSession = new SessionAvatarIA
         {
             UserId = userId,
             ModuleId = request.ModuleId,
             SessionExterneId = avatarSession.SessionId,
-            Historique = "[]"
+            Historique = JsonSerializer.Serialize(initialHistory)
         };
         _context.SessionsAvatarIA.Add(dbSession);
         await _context.SaveChangesAsync(ct);
@@ -54,7 +62,8 @@ public class AvatarIAController : ControllerBase
             avatarSession.StreamUrl,
             avatarSession.EmbedToken,
             _avatarService.IsMockMode,
-            dbSession.Id));
+            dbSession.Id,
+            greetingMsg));
     }
 
     [HttpPost("sessions/message")]

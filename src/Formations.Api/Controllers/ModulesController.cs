@@ -197,6 +197,32 @@ public class ModulesController : ControllerBase
         return Created($"/api/modules/examens/{examenId}", new { id = question.Id });
     }
 
+    [HttpGet("examens/{examenId:int}/questions")]
+    [Authorize]
+    public async Task<IActionResult> GetExamenQuestions(int examenId, CancellationToken ct)
+    {
+        var examen = await _context.Examens
+            .Include(e => e.Questions.OrderBy(q => q.Ordre))
+            .FirstOrDefaultAsync(e => e.Id == examenId && e.IsActif, ct);
+        if (examen is null) return NotFound();
+
+        var questions = examen.Questions.Select(q => new
+        {
+            q.Id,
+            q.Enonce,
+            Choix = JsonSerializer.Deserialize<List<string>>(q.Choix) ?? new List<string>(),
+            q.Points,
+            q.Ordre
+        }).ToList();
+
+        return Ok(new
+        {
+            examen = new ExamenDto(examen.Id, examen.ModuleId, examen.Titre, examen.Description,
+                examen.DureeMinutes, examen.NoteMinPassage, examen.TentativesMax, examen.Questions.Count, examen.IsActif),
+            questions
+        });
+    }
+
     [HttpPost("examens/{examenId:int}/attempt")]
     [Authorize]
     public async Task<IActionResult> AttemptExamen(int examenId, [FromBody] ExamenAttemptRequest request, CancellationToken ct)
@@ -215,6 +241,7 @@ public class ModulesController : ControllerBase
             return BadRequest(new { error = $"Nombre maximum de tentatives atteint ({examen.TentativesMax})." });
 
         var detailsParQuestion = new Dictionary<int, bool>();
+        var review = new List<QuestionReviewDto>();
         int correctCount = 0;
         int totalPoints = examen.Questions.Sum(q => q.Points);
         int earnedPoints = 0;
@@ -224,6 +251,7 @@ public class ModulesController : ControllerBase
             var userAnswer = request.Reponses.GetValueOrDefault(question.Id, "");
             var isCorrect = string.Equals(userAnswer.Trim(), question.BonneReponse.Trim(), StringComparison.OrdinalIgnoreCase);
             detailsParQuestion[question.Id] = isCorrect;
+            review.Add(new QuestionReviewDto(question.Id, question.Enonce, userAnswer, question.BonneReponse, question.Explication, isCorrect, question.Points));
             if (isCorrect)
             {
                 correctCount++;
@@ -250,6 +278,6 @@ public class ModulesController : ControllerBase
 
         return Ok(new ExamenAttemptResult(
             Math.Round(score, 2), isReussi, correctCount,
-            examen.Questions.Count, tentatives + 1, detailsParQuestion));
+            examen.Questions.Count, tentatives + 1, detailsParQuestion, review));
     }
 }

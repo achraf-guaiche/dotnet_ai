@@ -124,14 +124,29 @@ export function FormationDetail() {
               {modules.map((m) => (
                 <div key={m.id} className="flex items-center gap-3 p-4">
                   <span className="text-2xl">{m.hasCours ? '📖' : '📝'}</span>
-                  <span className="flex-1 font-medium text-slate-700">{m.titre}</span>
+                  <div className="flex-1">
+                    <span className="font-medium text-slate-700">{m.titre}</span>
+                    <div className="flex gap-2 text-xs text-slate-400 mt-0.5">
+                      {m.hasCours && <span>📄 Cours</span>}
+                      {m.nbExercices > 0 && <span>📝 {m.nbExercices} exercice{m.nbExercices > 1 ? 's' : ''}</span>}
+                      {m.nbExamens > 0 && <span>🎯 {m.nbExamens} quiz</span>}
+                    </div>
+                  </div>
                   {isInscrit && (
-                    <Link
-                      to={`/modules/${m.id}/avatar`}
-                      className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
-                    >
-                      🤖 Formateur IA
-                    </Link>
+                    <div className="flex gap-2 shrink-0">
+                      <Link
+                        to={`/modules/${m.id}/apprendre`}
+                        className="rounded-lg bg-brand-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-brand-700"
+                      >
+                        📖 Apprendre
+                      </Link>
+                      <Link
+                        to={`/modules/${m.id}/avatar`}
+                        className="rounded-lg bg-purple-600 px-3 py-1.5 text-sm font-semibold text-white hover:bg-purple-700"
+                      >
+                        🤖 IA
+                      </Link>
+                    </div>
                   )}
                 </div>
               ))}

@@ -34,7 +34,7 @@ export function AvatarSession() {
         setMessages([
           {
             role: 'assistant',
-            content: 'Bonjour ! Je suis votre formateur IA. Comment puis-je vous aider avec ce module ?',
+            content: res.initialMessage || 'Bonjour ! Je suis votre formateur IA. Comment puis-je vous aider avec ce module ?',
             timestamp: new Date(),
           },
         ]);
