@@ -4,6 +4,7 @@ using Formations.Domain.Entities;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Configuration;
 using System.Security.Claims;
 using System.Text.Json;
 
@@ -17,11 +18,13 @@ public class AvatarIAController : ControllerBase
 {
     private readonly IAvatarIAService _avatarService;
     private readonly IApplicationDbContext _context;
+    private readonly IConfiguration _config;
 
-    public AvatarIAController(IAvatarIAService avatarService, IApplicationDbContext context)
+    public AvatarIAController(IAvatarIAService avatarService, IApplicationDbContext context, IConfiguration config)
     {
         _avatarService = avatarService;
         _context = context;
+        _config = config;
     }
 
     [HttpPost("sessions/start")]
@@ -57,13 +60,18 @@ public class AvatarIAController : ControllerBase
         _context.SessionsAvatarIA.Add(dbSession);
         await _context.SaveChangesAsync(ct);
 
+        var avatarProvider = _config["AvatarIA:Provider"]?.ToLower() ?? "mock";
+        var personaId = string.IsNullOrWhiteSpace(_config["AvatarIA:PersonaId"]) ? null : _config["AvatarIA:PersonaId"];
+
         return Ok(new StartSessionResponse(
             avatarSession.SessionId,
             avatarSession.StreamUrl,
             avatarSession.EmbedToken,
             _avatarService.IsMockMode,
             dbSession.Id,
-            greetingMsg));
+            greetingMsg,
+            _avatarService.IsMockMode ? "mock" : avatarProvider,
+            personaId));
     }
 
     [HttpPost("sessions/message")]
@@ -87,8 +95,11 @@ public class AvatarIAController : ControllerBase
         dbSession.Historique = JsonSerializer.Serialize(history);
         await _context.SaveChangesAsync(ct);
 
+        // Pour Anam : la parole est gérée côté client via le SDK JS (anamClient.talk).
+        // Pour HeyGen : on déclenche la tâche de streaming depuis le backend.
         string? audioUrl = null;
-        if (!_avatarService.IsMockMode)
+        var provider = _config["AvatarIA:Provider"]?.ToLower();
+        if (!_avatarService.IsMockMode && provider != "anam")
             audioUrl = await _avatarService.TextToAvatarSpeechAsync(aiResponse, request.SessionId, ct);
 
         return Ok(new SendMessageResponse(aiResponse, audioUrl, null));

@@ -239,6 +239,8 @@ export interface StartSessionResponse {
   isMockMode: boolean;
   dbSessionId: number;
   initialMessage: string;
+  avatarProvider: 'mock' | 'anam' | 'heygen';
+  avatarPersonaId?: string | null;
 }
 
 export interface SendMessageResponse {

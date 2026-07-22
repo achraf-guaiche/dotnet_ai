@@ -1,5 +1,3 @@
-version: '3.9'
-
 services:
   # ── MySQL 8 ──────────────────────────────────────────────────────────────────
   mysql:
@@ -44,6 +42,8 @@ services:
       - Jwt__Audience=${Jwt__Audience:-FormationsUsers}
       - AvatarIA__Provider=${AvatarIA__Provider:-mock}
       - AvatarIA__ApiKey=${AvatarIA__ApiKey:-}
+      - AvatarIA__PersonaId=${AvatarIA__PersonaId:-}
+      - AvatarIA__BaseUrl=${AvatarIA__BaseUrl:-https://api.anam.ai/v1}
       # ── Choix du fournisseur LLM (moteur de dialogue du formateur IA) ──────────
       # Valeurs possibles : claude | openai | google | groq | llm
       #  - claude  → API Anthropic (Messages)

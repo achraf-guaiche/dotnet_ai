@@ -8,7 +8,9 @@ public record StartSessionResponse(
     string? EmbedToken,
     bool IsMockMode,
     int DbSessionId,
-    string InitialMessage
+    string InitialMessage,
+    string AvatarProvider,   // "mock" | "anam" | "heygen"
+    string? AvatarPersonaId  // Anam persona ID — requis par le SDK JS pour createClient
 );
 
 public record SendMessageRequest(string SessionId, int DbSessionId, string Message);

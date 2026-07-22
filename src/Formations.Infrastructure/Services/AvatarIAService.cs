@@ -62,12 +62,12 @@ public class AvatarIAService : IAvatarIAService
     // session token court (POST /v1/auth/session-token) que le SDK JS utilise côté navigateur.
     private async Task<AvatarSessionResult> CreateAnamSessionAsync(string textePresentation, CancellationToken ct)
     {
-        var personaId = Cfg("AvatarIA:PersonaId");
-        object personaConfig = personaId is not null
-            ? new { id = personaId }
-            : new { name = "Formateur", systemPrompt = textePresentation };
+        var personaId = Cfg("AvatarIA:PersonaId")
+            ?? throw new InvalidOperationException("AvatarIA:PersonaId est requis pour Anam (legacy token).");
 
-        var request = new { personaConfig };
+        // Format attendu par /auth/session-token pour un token "legacy" : { personaId }
+        // (pas personaConfig.id — le SDK valide "personaId" IN options à la construction)
+        var request = new { personaId };
 
         _httpClient.DefaultRequestHeaders.Clear();
         _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_config["AvatarIA:ApiKey"]}");
@@ -297,8 +297,10 @@ public class AvatarIAService : IAvatarIAService
 
         if (provider == "anam")
         {
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_config["AvatarIA:ApiKey"]}");
-            await _httpClient.PostAsJsonAsync($"{_config["AvatarIA:BaseUrl"]}/sessions/{sessionId}/end", new { }, ct);
+            // La session WebRTC Anam est fermée côté client via client.stopStreaming()
+            // qui ferme le WebSocket de signaling — Anam libère le slot automatiquement.
+            // Il n'existe pas d'endpoint REST /sessions/{id}/end dans l'API Anam v1.
+            _logger.LogInformation("Anam session {SessionId} — fermeture gérée côté SDK (WebSocket close)", sessionId);
         }
         else if (provider == "heygen")
         {
