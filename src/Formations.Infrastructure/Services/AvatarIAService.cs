@@ -248,25 +248,41 @@ public class AvatarIAService : IAvatarIAService
 
         var provider = _config["AvatarIA:Provider"]?.ToLower();
 
-        if (provider == "anam")
+        try
         {
-            var request = new { session_id = sessionId, text };
-            _httpClient.DefaultRequestHeaders.Clear();
-            _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_config["AvatarIA:ApiKey"]}");
-            var response = await _httpClient.PostAsJsonAsync($"{_config["AvatarIA:BaseUrl"]}/sessions/speak", request, ct);
-            response.EnsureSuccessStatusCode();
-            var result = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
-            return result.TryGetProperty("audio_url", out var url) ? url.GetString()! : "";
-        }
+            if (provider == "anam")
+            {
+                var baseUrl = (Cfg("AvatarIA:BaseUrl") ?? "https://api.anam.ai/v1").TrimEnd('/');
+                var request = new { session_id = sessionId, text };
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Add("Authorization", $"Bearer {_config["AvatarIA:ApiKey"]}");
+                var response = await _httpClient.PostAsJsonAsync($"{baseUrl}/sessions/speak", request, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("Anam TTS a répondu {Status} pour la session {Session} — TTS ignoré", (int)response.StatusCode, sessionId);
+                    return "";
+                }
+                var result = await response.Content.ReadFromJsonAsync<JsonElement>(cancellationToken: ct);
+                return result.TryGetProperty("audio_url", out var url) ? url.GetString()! : "";
+            }
 
-        if (provider == "heygen")
+            if (provider == "heygen")
+            {
+                var request = new { session_id = sessionId, text, task_type = "repeat" };
+                _httpClient.DefaultRequestHeaders.Clear();
+                _httpClient.DefaultRequestHeaders.Add("x-api-key", _config["AvatarIA:ApiKey"]);
+                var response = await _httpClient.PostAsJsonAsync("https://api.heygen.com/v1/streaming.task", request, ct);
+                if (!response.IsSuccessStatusCode)
+                {
+                    _logger.LogWarning("HeyGen TTS a répondu {Status} pour la session {Session} — TTS ignoré", (int)response.StatusCode, sessionId);
+                    return sessionId;
+                }
+                return sessionId;
+            }
+        }
+        catch (Exception ex)
         {
-            var request = new { session_id = sessionId, text, task_type = "repeat" };
-            _httpClient.DefaultRequestHeaders.Clear();
-            _httpClient.DefaultRequestHeaders.Add("x-api-key", _config["AvatarIA:ApiKey"]);
-            var response = await _httpClient.PostAsJsonAsync("https://api.heygen.com/v1/streaming.task", request, ct);
-            response.EnsureSuccessStatusCode();
-            return sessionId;
+            _logger.LogError(ex, "Erreur TTS avatar ({Provider}) — dégradation gracieuse, le texte reste disponible", provider);
         }
 
         return "";
