@@ -80,6 +80,48 @@ public class AuthServiceTests
         result.Data.AccessToken.Should().Be("mock-access-token");
     }
 
+    [Theory]
+    [InlineData("Formateur", "Formateur")]
+    [InlineData("Apprenant", "Apprenant")]
+    [InlineData("Admin", "Apprenant")]       // Admin ne peut pas être auto-attribué
+    [InlineData("n'importe quoi", "Apprenant")]
+    public async Task Register_AssignsOnlyWhitelistedRole(string roleDemande, string roleAttendu)
+    {
+        // Arrange
+        var request = new RegisterRequest("Jean Dupont", "jean@test.com", "Password@1", "Password@1", roleDemande);
+        SetupSuccessfulRegistration(roleAttendu);
+        _contextMock.Setup(c => c.Formateurs).Returns(MockDbSet<Formateur>());
+
+        // Act
+        var result = await _sut.RegisterAsync(request);
+
+        // Assert
+        result.IsSuccess.Should().BeTrue();
+        _userManagerMock.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), roleAttendu), Times.Once);
+        _userManagerMock.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Admin"), Times.Never);
+    }
+
+    private void SetupSuccessfulRegistration(string role)
+    {
+        _userManagerMock.Setup(m => m.FindByEmailAsync(It.IsAny<string>())).ReturnsAsync((ApplicationUser?)null);
+        _userManagerMock.Setup(m => m.CreateAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
+            .ReturnsAsync(IdentityResult.Success);
+        _userManagerMock.Setup(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), It.IsAny<string>()))
+            .ReturnsAsync(IdentityResult.Success);
+        _userManagerMock.Setup(m => m.GetRolesAsync(It.IsAny<ApplicationUser>()))
+            .ReturnsAsync(new List<string> { role });
+        _userManagerMock.Setup(m => m.UpdateAsync(It.IsAny<ApplicationUser>())).ReturnsAsync(IdentityResult.Success);
+
+        _jwtServiceMock.Setup(j => j.GenerateAccessToken(It.IsAny<ApplicationUser>(), It.IsAny<IList<string>>()))
+            .Returns("mock-access-token");
+        _jwtServiceMock.Setup(j => j.GenerateRefreshToken()).Returns("mock-refresh-token");
+        _emailServiceMock.Setup(e => e.SendWelcomeAsync(It.IsAny<string>(), It.IsAny<string>(), It.IsAny<CancellationToken>()))
+            .Returns(Task.CompletedTask);
+
+        _contextMock.Setup(c => c.ActivityLogs).Returns(MockDbSet<ActivityLog>());
+        _contextMock.Setup(c => c.SaveChangesAsync(It.IsAny<CancellationToken>())).ReturnsAsync(1);
+    }
+
     [Fact]
     public async Task Login_WithWrongPassword_ReturnsFailure()
     {

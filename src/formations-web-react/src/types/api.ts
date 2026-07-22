@@ -49,6 +49,9 @@ export interface AppConfig {
 }
 
 // ── Auth ────────────────────────────────────────────────────────────────────
+// Rôles choisissables à l'inscription (Admin est réservé, attribué par un admin).
+export type RegisterRole = 'Apprenant' | 'Formateur';
+
 export interface AuthResponse {
   userId: string;
   email: string;

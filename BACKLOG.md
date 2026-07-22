@@ -166,23 +166,52 @@
 
 ---
 
+## EPIC 11 — Parcours apprenant & Rôles à l'inscription
+
+### Sprint 9 — Apprentissage, Avatar temps réel, Choix du rôle
+
+**User Stories :**
+
+- [x] **US-34** En tant qu'apprenant, je veux consulter le cours, faire les exercices et passer le quiz d'un module.
+  - Critères : page `/modules/:id/apprendre` avec onglets Cours (vidéo/PDF/HTML), Exercices
+    (correction auto) et Quiz (timer, QCM, résultats détaillés avec explication)
+  - Réalisé : `ModuleLearn.tsx`, `GET /api/modules/examens/{id}/questions` (sans les bonnes réponses)
+- [x] **US-35** En tant qu'apprenant, je veux voir et entendre l'avatar IA pendant la session.
+  - Critères : flux vidéo/audio Anam dans le navigateur, pas d'échec si aucun micro n'est branché
+  - Réalisé : `@anam-ai/js-sdk` + `streamToVideoAndAudioElements`, `sessionToken` fourni par
+    l'API, flux audio silencieux (`AudioContext`) passé en `userProvidedMediaStream` pour
+    contourner `getUserMedia` (chat 100 % texte)
+- [x] **US-36** En tant que visiteur, je veux choisir de m'inscrire comme **Apprenant** ou **Formateur**.
+  - Critères :
+    - le formulaire `/inscription` propose deux cartes de rôle (Apprenant par défaut)
+    - le rôle est envoyé à `POST /api/auth/register` et appliqué au compte créé
+    - **seuls** `Apprenant` et `Formateur` sont acceptés côté serveur — `Admin` reste attribuable
+      uniquement par un administrateur via `/admin/utilisateurs`
+    - une inscription « Formateur » crée aussi la fiche `Formateur` liée (rattachement aux formations)
+    - après inscription, redirection vers `/gestion/formations` (formateur) ou `/formations` (apprenant)
+  - Réalisé : `RegisterRequest.Role` + liste blanche `RolesAutorises`, validation FluentValidation,
+    `AuthService.RegisterAsync`, `Register.tsx`, `AuthContext.register(..., role)`
+  - Tests : `Register_AssignsOnlyWhitelistedRole` (4 cas, dont tentative d'escalade « Admin »)
+
+---
+
 ## ⚠️ Dette technique / À corriger au prochain sprint
 
-- [ ] **BUG-01** `POST /api/avatar/sessions/message` renvoie 500 (Anam `POST /v1/sessions/speak` → 405).
-  - Cause : Anam n'expose pas d'endpoint serveur « speak ». La synthèse vocale est pilotée
-    côté navigateur par le SDK (`anamClient.talk(text)`), comme pour la création de session.
-  - Impact : la réponse du LLM **est bien générée et persistée** en base, mais l'appel HTTP
-    échoue ensuite → l'apprenant reçoit une 500 et ne voit pas la réponse.
-  - Correctif prévu : supprimer l'appel serveur `TextToAvatarSpeechAsync` pour Anam (ou
-    l'entourer d'un try/catch comme `CreateSessionAsync`) et déclencher la parole via le SDK client.
-- [ ] **BUG-02** Vidéo de l'avatar non affichée : Anam nécessite le SDK navigateur
-  (`@anam-ai/js-sdk` + `streamToVideoElement`). Le backend fournit déjà le `sessionToken`
-  (`embedToken`) ; il reste à l'intégrer dans la page React `SessionAvatar`.
+- [x] ~~**BUG-01** `POST /api/avatar/sessions/message` renvoie 500 (Anam `POST /v1/sessions/speak` → 405).~~
+  - Corrigé (Sprint 9) : `TextToAvatarSpeechAsync` utilise la bonne base URL, vérifie le statut
+    explicitement et est entouré d'un try/catch — un 4xx/5xx du fournisseur ne casse plus le chat.
+    La parole est déclenchée côté navigateur par le SDK.
+- [x] ~~**BUG-02** Vidéo de l'avatar non affichée.~~
+  - Corrigé (Sprint 9) : intégration `@anam-ai/js-sdk` dans `AvatarSession.tsx`.
 - [ ] **BUG-03** Les appels réels OpenAI / Google / Groq ne sont pas testés (aucune clé
   disponible lors du développement) — seules les formes de requête/réponse documentées sont implémentées.
 - [ ] **DETTE-01** Ajouter des tests unitaires sur les services métier (inscriptions, scoring
-  d'examen, provider LLM) — actuellement 9 tests, centrés sur Auth/JWT.
+  d'examen, provider LLM) — 13 tests actuellement, centrés sur Auth/JWT/rôles.
 - [ ] **DETTE-02** Déploiement Railway non vérifié de bout en bout.
+- [ ] **DETTE-03** L'attribution du rôle `Formateur` par un admin (`PUT /api/admin/users/{id}/role`)
+  ne crée pas la fiche `Formateur` correspondante, contrairement à l'inscription (US-36).
+- [ ] **DETTE-04** Modération des inscriptions formateur : aujourd'hui n'importe qui peut se
+  déclarer formateur. Prévoir une validation par un admin (compte en attente) ou un code d'invitation.
 
 ---
 
@@ -279,3 +308,37 @@
 4. Choix du LLM : `LLM__Provider=groq docker compose up -d api` → badge « Mode dev » sur l'accueil
 
 **Reste à faire :** voir la section « Dette technique » (BUG-01 à BUG-03, DETTE-01/02)
+
+### Sprint 9 ✅
+**Livré :** parcours d'apprentissage complet, avatar IA en temps réel, choix du rôle à l'inscription
+
+**Apprentissage (US-34)** — page `ModuleLearn.tsx` (`/modules/:id/apprendre`) avec onglets cours
+(vidéo / PDF / HTML), exercices à correction automatique et quiz chronométré avec correction
+détaillée ; `GET /api/modules/examens/{id}/questions` renvoie les questions sans les bonnes réponses ;
+`AttemptExamen` renvoie la `review` complète (bonne réponse + explication).
+
+**Avatar (US-35, BUG-01/BUG-02)** — intégration `@anam-ai/js-sdk` avec
+`streamToVideoAndAudioElements` ; flux audio silencieux (`AudioContext`) passé en
+`userProvidedMediaStream` pour éviter l'erreur `NotFoundError` de `getUserMedia` sans micro ;
+`TextToAvatarSpeechAsync` ne fait plus planter le chat en cas d'erreur du fournisseur ;
+le message d'accueil est désormais persisté dans l'historique de session.
+
+**Inscription par rôle (US-36)**
+- `RegisterRequest` : nouveau champ `Role` (défaut `Apprenant`) + `RolesAutorises` (liste blanche)
+- `RegisterRequestValidator` : refuse tout rôle hors `Apprenant` / `Formateur`
+- `AuthService.RegisterAsync` : double contrôle serveur (ignore silencieusement un rôle non autorisé
+  et retombe sur `Apprenant`) — **impossible de s'auto-attribuer `Admin`**
+- Inscription formateur → création automatique de la fiche `Formateur` (rattachement aux formations,
+  comptage dans le dashboard admin)
+- Journal d'activité : `Register` précise le rôle choisi
+- Front : sélecteur de rôle en deux cartes sur `/inscription`, redirection vers `/gestion/formations`
+  pour un formateur
+
+**Comment tester :**
+1. `docker compose up --build` → http://localhost:5002/inscription
+2. Choisir **Formateur** → après création du compte, arrivée directe sur **Gestion des formations**
+3. Choisir **Apprenant** → arrivée sur le catalogue, bouton « S'inscrire » disponible
+4. Tentative d'escalade : `curl -X POST .../api/auth/register -d '{"role":"Admin",...}'` → compte créé
+   en **Apprenant** (jamais Admin)
+
+**Tests :** 13/13 tests unitaires au vert (dont 4 cas sur la liste blanche des rôles)

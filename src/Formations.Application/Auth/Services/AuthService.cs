@@ -30,6 +30,11 @@ public class AuthService
         if (await _userManager.FindByEmailAsync(request.Email) is not null)
             return Result<AuthResponse>.Failure("Un compte existe déjà avec cet email.");
 
+        // Le rôle vient du client : on n'accepte QUE la liste blanche (jamais Admin).
+        var roleDemande = RegisterRequest.RolesAutorises.Contains(request.Role)
+            ? request.Role
+            : RegisterRequest.RoleApprenant;
+
         var user = new ApplicationUser
         {
             UserName = request.Email,
@@ -42,7 +47,14 @@ public class AuthService
         if (!identityResult.Succeeded)
             return Result<AuthResponse>.Failure(identityResult.Errors.Select(e => e.Description));
 
-        await _userManager.AddToRoleAsync(user, "Apprenant");
+        await _userManager.AddToRoleAsync(user, roleDemande);
+
+        // Un formateur a besoin d'une fiche Formateur pour être rattaché à des formations.
+        if (roleDemande == RegisterRequest.RoleFormateur)
+        {
+            _context.Formateurs.Add(new Formateur { UserId = user.Id });
+            await _context.SaveChangesAsync(ct);
+        }
 
         var roles = await _userManager.GetRolesAsync(user);
         var accessToken = _jwtService.GenerateAccessToken(user, roles);
@@ -53,7 +65,7 @@ public class AuthService
         await _userManager.UpdateAsync(user);
 
         await _emailService.SendWelcomeAsync(user.Email!, user.FullName, ct);
-        await LogActivityAsync(user.Id, "Register", "Nouvel apprenant inscrit", ct);
+        await LogActivityAsync(user.Id, "Register", $"Nouvelle inscription ({roleDemande})", ct);
 
         return Result<AuthResponse>.Success(new AuthResponse(
             user.Id, user.Email!, user.FullName, roles,

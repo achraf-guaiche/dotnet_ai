@@ -3,11 +3,28 @@ import { Link, useNavigate } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext';
 import { ApiError } from '../lib/apiClient';
 import { SpinnerSm } from '../components/Spinner';
+import type { RegisterRole } from '../types/api';
+
+const ROLES: { value: RegisterRole; icon: string; titre: string; desc: string }[] = [
+  {
+    value: 'Apprenant',
+    icon: '🎓',
+    titre: 'Apprenant',
+    desc: "Je veux suivre des formations, passer les quiz et obtenir des certificats.",
+  },
+  {
+    value: 'Formateur',
+    icon: '🧑‍🏫',
+    titre: 'Formateur',
+    desc: 'Je veux créer et animer des formations, modules, cours et examens.',
+  },
+];
 
 export function Register() {
   const { register } = useAuth();
   const navigate = useNavigate();
 
+  const [role, setRole] = useState<RegisterRole>('Apprenant');
   const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
@@ -24,8 +41,8 @@ export function Register() {
     setLoading(true);
     setError('');
     try {
-      await register(fullName, email, password, confirmPassword);
-      navigate('/formations', { replace: true });
+      await register(fullName, email, password, confirmPassword, role);
+      navigate(role === 'Formateur' ? '/gestion/formations' : '/formations', { replace: true });
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Erreur lors de l'inscription. Vérifiez vos informations.",
@@ -35,7 +52,7 @@ export function Register() {
   };
 
   return (
-    <div className="mx-auto max-w-md">
+    <div className="mx-auto max-w-lg">
       <div className="rounded-2xl border border-slate-200 bg-white p-8 shadow-sm">
         <div className="mb-6 text-center">
           <span className="text-4xl">🎓</span>
@@ -45,6 +62,41 @@ export function Register() {
 
         <form onSubmit={handleSubmit} className="space-y-4">
           {error && <div className="rounded-lg bg-red-50 px-3 py-2 text-sm text-red-600">{error}</div>}
+
+          <fieldset className="space-y-2">
+            <legend className="text-sm font-medium text-slate-600">Je m'inscris en tant que</legend>
+            <div className="grid gap-3 sm:grid-cols-2">
+              {ROLES.map((r) => {
+                const selected = role === r.value;
+                return (
+                  <label
+                    key={r.value}
+                    className={`cursor-pointer rounded-xl border-2 p-4 transition ${
+                      selected
+                        ? 'border-brand-600 bg-brand-50 ring-2 ring-brand-200'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <input
+                      type="radio"
+                      name="role"
+                      value={r.value}
+                      checked={selected}
+                      onChange={() => setRole(r.value)}
+                      className="sr-only"
+                    />
+                    <div className="flex items-center gap-2">
+                      <span className="text-2xl">{r.icon}</span>
+                      <span className={`font-semibold ${selected ? 'text-brand-700' : 'text-slate-700'}`}>
+                        {r.titre}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-xs leading-snug text-slate-500">{r.desc}</p>
+                  </label>
+                );
+              })}
+            </div>
+          </fieldset>
 
           <Field label="Nom complet">
             <input

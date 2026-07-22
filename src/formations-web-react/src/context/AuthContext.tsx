@@ -1,6 +1,6 @@
 import { createContext, useContext, useEffect, useMemo, useState, type ReactNode } from 'react';
 import { api, setTokens, clearTokens, getToken } from '../lib/apiClient';
-import type { AuthResponse } from '../types/api';
+import type { AuthResponse, RegisterRole } from '../types/api';
 
 interface AuthUser {
   userId: string;
@@ -17,7 +17,13 @@ interface AuthContextValue {
   hasAnyRole: (roles: string[]) => boolean;
   isStaff: boolean; // Admin ou Formateur
   login: (email: string, password: string) => Promise<void>;
-  register: (fullName: string, email: string, password: string, confirmPassword: string) => Promise<void>;
+  register: (
+    fullName: string,
+    email: string,
+    password: string,
+    confirmPassword: string,
+    role: RegisterRole,
+  ) => Promise<void>;
   logout: () => void;
 }
 
@@ -61,12 +67,19 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       setUser(persistUser(res));
     };
 
-    const register = async (fullName: string, email: string, password: string, confirmPassword: string) => {
+    const register = async (
+      fullName: string,
+      email: string,
+      password: string,
+      confirmPassword: string,
+      role: RegisterRole = 'Apprenant',
+    ) => {
       const res = await api.post<AuthResponse>('api/auth/register', {
         fullName,
         email,
         password,
         confirmPassword,
+        role,
       });
       setUser(persistUser(res));
     };
