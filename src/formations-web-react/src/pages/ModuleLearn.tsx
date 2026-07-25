@@ -1,7 +1,7 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import { api, ApiError } from '../lib/apiClient';
-import type { ModuleContent, ExamenDetail, ExamenAttemptResult } from '../types/api';
+import type { ModuleContent, ExamenDetail, ExamenAttemptResult, MesResultatsModule, SubmitExerciceResult } from '../types/api';
 import { Spinner } from '../components/Spinner';
 
 type Tab = 'cours' | 'exercices' | 'quiz';
@@ -12,8 +12,15 @@ export function ModuleLearn() {
   const navigate = useNavigate();
 
   const [content, setContent] = useState<ModuleContent | null>(null);
+  const [results, setResults] = useState<MesResultatsModule | null>(null);
   const [loading, setLoading] = useState(true);
   const [tab, setTab] = useState<Tab>('cours');
+
+  // Résultats de l'apprenant (tentatives passées + progression) — rechargé après chaque soumission.
+  const refreshResults = useCallback(async () => {
+    const r = await api.get<MesResultatsModule>(`api/modules/${modId}/mes-resultats`).catch(() => null);
+    setResults(r);
+  }, [modId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -26,6 +33,7 @@ export function ModuleLearn() {
           document.title = data.module.titre;
           if (!data.cours) setTab(data.exercices.length > 0 ? 'exercices' : 'quiz');
         }
+        await refreshResults();
       } catch {
         if (!cancelled) navigate('/formations', { replace: true });
       } finally {
@@ -33,7 +41,7 @@ export function ModuleLearn() {
       }
     })();
     return () => { cancelled = true; };
-  }, [modId, navigate]);
+  }, [modId, navigate, refreshResults]);
 
   if (loading) return <Spinner label="Chargement du module..." />;
   if (!content) return null;
@@ -69,6 +77,24 @@ export function ModuleLearn() {
         {module.description && <p className="text-slate-500 text-sm">{module.description}</p>}
       </div>
 
+      {/* Progression */}
+      {results && (
+        <div className="flex items-center gap-3 rounded-xl border border-slate-200 bg-white p-4">
+          <div className="flex-1">
+            <div className="mb-1 flex items-center justify-between text-sm">
+              <span className="font-medium text-slate-700">
+                {results.moduleComplete ? '✅ Module complété' : '⏳ Module en cours'}
+              </span>
+              <span className="text-slate-500">Progression formation : {results.progressionFormation}%</span>
+            </div>
+            <div className="h-2 overflow-hidden rounded-full bg-slate-100">
+              <div className="h-full rounded-full bg-brand-600 transition-all"
+                style={{ width: `${results.progressionFormation}%` }} />
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex gap-1 border-b border-slate-200">
         {tabs.map(t => (
@@ -92,8 +118,10 @@ export function ModuleLearn() {
       {/* Contenu */}
       <div className="rounded-xl border border-slate-200 bg-white p-6">
         {tab === 'cours' && cours && <CoursTab cours={cours} moduleId={modId} />}
-        {tab === 'exercices' && <ExercicesTab exercices={exercices} moduleId={modId} />}
-        {tab === 'quiz' && <QuizTab examens={examens} />}
+        {tab === 'exercices' && (
+          <ExercicesTab exercices={exercices} moduleId={modId} results={results} onSubmitted={refreshResults} />
+        )}
+        {tab === 'quiz' && <QuizTab examens={examens} results={results} onFinished={refreshResults} />}
       </div>
     </div>
   );
@@ -161,14 +189,40 @@ function toYouTubeEmbed(url: string): string {
 }
 
 // ── Exercices ─────────────────────────────────────────────────────────────────
-interface ExerciceAnswer {
+interface ExerciceState {
   value: string;
-  submitted: boolean;
+  submitting?: boolean;
   isCorrect?: boolean;
+  correctionAuto?: boolean;
+  reponseCorrecte?: string | null;
+  tentativeNumero?: number;
+  submitted: boolean;
 }
 
-function ExercicesTab({ exercices, moduleId }: { exercices: ModuleContent['exercices']; moduleId: number }) {
-  const [answers, setAnswers] = useState<Record<number, ExerciceAnswer>>({});
+function ExercicesTab({
+  exercices,
+  moduleId,
+  results,
+  onSubmitted,
+}: {
+  exercices: ModuleContent['exercices'];
+  moduleId: number;
+  results: MesResultatsModule | null;
+  onSubmitted: () => void;
+}) {
+  // État initial : reflète la dernière tentative persistée (consultation).
+  const [answers, setAnswers] = useState<Record<number, ExerciceState>>(() => {
+    const init: Record<number, ExerciceState> = {};
+    for (const r of results?.exercices ?? []) {
+      init[r.exerciceId] = {
+        value: r.reponse ?? '',
+        submitted: true,
+        isCorrect: r.isCorrect,
+        tentativeNumero: r.tentativeNumero,
+      };
+    }
+    return init;
+  });
 
   if (exercices.length === 0) {
     return <p className="text-slate-400">Aucun exercice pour ce module.</p>;
@@ -178,20 +232,31 @@ function ExercicesTab({ exercices, moduleId }: { exercices: ModuleContent['exerc
     setAnswers(prev => ({ ...prev, [id]: { value, submitted: false } }));
   };
 
+  const retry = (id: number) => {
+    setAnswers(prev => ({ ...prev, [id]: { value: '', submitted: false } }));
+  };
+
   const handleSubmit = async (ex: ModuleContent['exercices'][number]) => {
     const ans = answers[ex.id]?.value ?? '';
-    if (!ex.correctionAuto) {
-      setAnswers(prev => ({ ...prev, [ex.id]: { value: ans, submitted: true } }));
-      return;
-    }
+    setAnswers(prev => ({ ...prev, [ex.id]: { value: ans, submitted: false, submitting: true } }));
     try {
-      const res = await api.post<{ isCorrect: boolean; bonneReponse: string }>('api/exercices/verify', {
-        exerciceId: ex.id,
+      const res = await api.post<SubmitExerciceResult>(`api/modules/exercices/${ex.id}/submit`, {
         reponse: ans,
-      }).catch(() => ({ isCorrect: false, bonneReponse: '' }));
-      setAnswers(prev => ({ ...prev, [ex.id]: { value: ans, submitted: true, isCorrect: res.isCorrect } }));
+      });
+      setAnswers(prev => ({
+        ...prev,
+        [ex.id]: {
+          value: ans,
+          submitted: true,
+          isCorrect: res.isCorrect,
+          correctionAuto: res.correctionAuto,
+          reponseCorrecte: res.reponseCorrecte,
+          tentativeNumero: res.tentativeNumero,
+        },
+      }));
+      onSubmitted(); // met à jour la progression
     } catch {
-      setAnswers(prev => ({ ...prev, [ex.id]: { value: ans, submitted: true } }));
+      setAnswers(prev => ({ ...prev, [ex.id]: { value: ans, submitted: false } }));
     }
   };
 
@@ -214,16 +279,7 @@ function ExercicesTab({ exercices, moduleId }: { exercices: ModuleContent['exerc
             )}
 
             <div className="space-y-2">
-              {ex.typeReponse === 'TexteCourt' ? (
-                <input
-                  type="text"
-                  value={ans?.value ?? ''}
-                  onChange={e => handleChange(ex.id, e.target.value)}
-                  disabled={ans?.submitted}
-                  placeholder="Votre réponse..."
-                  className="input"
-                />
-              ) : (
+              {ex.typeReponse === 'TexteLibre' ? (
                 <textarea
                   value={ans?.value ?? ''}
                   onChange={e => handleChange(ex.id, e.target.value)}
@@ -232,25 +288,47 @@ function ExercicesTab({ exercices, moduleId }: { exercices: ModuleContent['exerc
                   placeholder="Votre réponse..."
                   className="input resize-none"
                 />
+              ) : (
+                <input
+                  type="text"
+                  value={ans?.value ?? ''}
+                  onChange={e => handleChange(ex.id, e.target.value)}
+                  disabled={ans?.submitted}
+                  placeholder="Votre réponse..."
+                  className="input"
+                />
               )}
 
               {!ans?.submitted ? (
                 <button
                   onClick={() => handleSubmit(ex)}
-                  disabled={!answers[ex.id]?.value}
+                  disabled={!answers[ex.id]?.value || ans?.submitting}
                   className="rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700 disabled:opacity-50"
                 >
-                  Valider
+                  {ans?.submitting ? 'Envoi…' : 'Valider'}
                 </button>
               ) : (
-                <div className={`rounded-lg p-3 text-sm ${
-                  ans.isCorrect === true ? 'bg-green-50 text-green-700' :
-                  ans.isCorrect === false ? 'bg-red-50 text-red-700' :
-                  'bg-blue-50 text-blue-700'
-                }`}>
-                  {ans.isCorrect === true && '✅ Bonne réponse !'}
-                  {ans.isCorrect === false && '❌ Réponse incorrecte. Consultez le Formateur IA pour plus d\'explications.'}
-                  {ans.isCorrect === undefined && '📨 Réponse envoyée. Elle sera corrigée par votre formateur.'}
+                <div className="space-y-2">
+                  <div className={`rounded-lg p-3 text-sm ${
+                    ans.isCorrect === true ? 'bg-green-50 text-green-700' :
+                    ans.isCorrect === false ? 'bg-red-50 text-red-700' :
+                    'bg-blue-50 text-blue-700'
+                  }`}>
+                    {ans.isCorrect === true && (ans.correctionAuto === false
+                      ? '📨 Réponse enregistrée.'
+                      : '✅ Bonne réponse !')}
+                    {ans.isCorrect === false && '❌ Réponse incorrecte.'}
+                    {ans.tentativeNumero ? ` (tentative n°${ans.tentativeNumero})` : ''}
+                    {ans.isCorrect === false && ans.reponseCorrecte && (
+                      <span className="ml-1 font-medium">Attendu : {ans.reponseCorrecte}</span>
+                    )}
+                  </div>
+                  <button
+                    onClick={() => retry(ex.id)}
+                    className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-medium text-slate-600 hover:bg-white"
+                  >
+                    🔄 Recommencer
+                  </button>
                 </div>
               )}
             </div>
@@ -271,7 +349,15 @@ function ExercicesTab({ exercices, moduleId }: { exercices: ModuleContent['exerc
 }
 
 // ── Quiz ──────────────────────────────────────────────────────────────────────
-function QuizTab({ examens }: { examens: ModuleContent['examens'] }) {
+function QuizTab({
+  examens,
+  results,
+  onFinished,
+}: {
+  examens: ModuleContent['examens'];
+  results: MesResultatsModule | null;
+  onFinished: () => void;
+}) {
   const [selectedExamen, setSelectedExamen] = useState<number | null>(null);
   const [result, setResult] = useState<ExamenAttemptResult | null>(null);
 
@@ -284,13 +370,21 @@ function QuizTab({ examens }: { examens: ModuleContent['examens'] }) {
   }
 
   if (selectedExamen !== null) {
-    return <QuizRunner examenId={selectedExamen} onFinish={setResult} onCancel={() => setSelectedExamen(null)} />;
+    return (
+      <QuizRunner
+        examenId={selectedExamen}
+        onFinish={(r) => { setResult(r); onFinished(); }}
+        onCancel={() => setSelectedExamen(null)}
+      />
+    );
   }
 
   return (
     <div className="space-y-4">
       <p className="text-sm text-slate-500">Choisissez un quiz à passer :</p>
-      {examens.map(ex => (
+      {examens.map(ex => {
+        const prev = results?.examens.find(e => e.examenId === ex.id);
+        return (
         <div
           key={ex.id}
           className="flex items-center justify-between gap-4 rounded-xl border border-slate-200 p-4"
@@ -304,19 +398,25 @@ function QuizTab({ examens }: { examens: ModuleContent['examens'] }) {
               <span>🔄 {ex.tentativesMax} tentative{ex.tentativesMax > 1 ? 's' : ''} max</span>
               <span>❓ {ex.nbQuestions} question{ex.nbQuestions > 1 ? 's' : ''}</span>
             </div>
+            {prev && (
+              <p className={`text-xs font-medium ${prev.isReussi ? 'text-green-600' : 'text-red-600'}`}>
+                {prev.isReussi ? '✅ Réussi' : '❌ Échoué'} — dernier score {prev.score}% (tentative n°{prev.tentativeNumero})
+              </p>
+            )}
           </div>
           {ex.isActif ? (
             <button
               onClick={() => setSelectedExamen(ex.id)}
               className="shrink-0 rounded-lg bg-brand-600 px-4 py-2 text-sm font-semibold text-white hover:bg-brand-700"
             >
-              Commencer
+              {prev ? 'Recommencer' : 'Commencer'}
             </button>
           ) : (
             <span className="text-xs text-slate-400">Désactivé</span>
           )}
         </div>
-      ))}
+        );
+      })}
     </div>
   );
 }

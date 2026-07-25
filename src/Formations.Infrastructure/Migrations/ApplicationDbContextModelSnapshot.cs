@@ -627,6 +627,48 @@ namespace Formations.Infrastructure.Migrations
                     b.ToTable("ResultatsExamens");
                 });
 
+            modelBuilder.Entity("Formations.Domain.Entities.ResultatExercice", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime>("CreatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("DatePassage")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("ExerciceId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("IsCorrect")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Reponse")
+                        .HasColumnType("longtext");
+
+                    b.Property<int>("TentativeNumero")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("UpdatedAt")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("UserId")
+                        .IsRequired()
+                        .HasColumnType("varchar(255)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ExerciceId");
+
+                    b.HasIndex("UserId");
+
+                    b.ToTable("ResultatsExercices");
+                });
+
             modelBuilder.Entity("Formations.Domain.Entities.SessionAvatarIA", b =>
                 {
                     b.Property<int>("Id")
@@ -946,6 +988,25 @@ namespace Formations.Infrastructure.Migrations
                         .IsRequired();
 
                     b.Navigation("Examen");
+
+                    b.Navigation("User");
+                });
+
+            modelBuilder.Entity("Formations.Domain.Entities.ResultatExercice", b =>
+                {
+                    b.HasOne("Formations.Domain.Entities.Exercice", "Exercice")
+                        .WithMany()
+                        .HasForeignKey("ExerciceId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Formations.Domain.Entities.ApplicationUser", "User")
+                        .WithMany()
+                        .HasForeignKey("UserId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("Exercice");
 
                     b.Navigation("User");
                 });

@@ -221,6 +221,26 @@
     interactif existant (`/modules/:id/avatar`) récite le script généré, chat inclus. Aucun rendu
     de fichier vidéo (avatar temps réel Anam, déjà en place).
 
+### Sprint 12 — Parcours apprenant : exercices, suivi, progression
+
+- [x] **US-39** En tant que formateur, je veux que les **exercices** soient aussi générés par l'IA.
+  - Réalisé : `GeneratedCourse.Exercices`, prompt/parse/mock étendus, persistance (remplacement)
+    dans `GenerateForModuleAsync`. Le résultat indique le nombre d'exercices générés.
+- [x] **US-40** En tant qu'apprenant, je veux que mes tentatives d'exercices et de quiz soient
+  **enregistrées**, consultables et **recommençables**.
+  - Réalisé : entité `ResultatExercice` (+ migration `AddResultatExercice`),
+    `POST /api/modules/exercices/{id}/submit` (correction auto si réponse attendue, sinon acceptée),
+    `GET /api/modules/{id}/mes-resultats` (dernière tentative par exercice/examen). Front `ModuleLearn` :
+    statut persisté, bouton « 🔄 Recommencer », badge « Réussi/Échoué » sur les quiz déjà passés.
+- [x] **US-41** En tant qu'apprenant, je veux que ma **progression augmente** quand je réussis le
+  quiz **et** les exercices d'un module.
+  - Réalisé : `RecomputeProgressAsync` (idempotent) appelé après chaque soumission d'exercice et
+    tentative de quiz. Module complété = quiz réussi (s'il existe) ET tous les exercices corrects
+    (s'il en existe). 100 % → statut Terminé + numéro de certificat. Barre de progression dans `ModuleLearn`.
+- [x] **US-42** En tant que formateur, je veux **prévisualiser** un module comme un apprenant.
+  - Réalisé : lien « 👁️ Aperçu » par module dans `/gestion/formations/:id/modules` → `/modules/:id/apprendre`
+    (page accessible à tout compte authentifié ; la progression reste sans effet sans inscription).
+
 ---
 
 ## ⚠️ Dette technique / À corriger au prochain sprint
@@ -425,3 +445,24 @@ contenu généré.
 « Gérer le contenu » → saisir un prompt → « Générer ». Puis côté apprenant, ouvrir le module → 🤖 IA.
 
 **Tests :** 38/38 au vert (dont 3 sur la génération). Build .NET + build front OK.
+
+### Sprint 12 ✅
+**Livré :** parcours apprenant complet — exercices générés, tentatives persistées, progression auto
+
+**Backend**
+- Exercices ajoutés à la génération IA (US-39).
+- Nouvelle entité `ResultatExercice` + migration `AddResultatExercice` (factory design-time
+  `DesignTimeDbContextFactory` ajoutée pour générer les migrations hors-ligne).
+- `POST /api/modules/exercices/{id}/submit`, `GET /api/modules/{id}/mes-resultats`.
+- `RecomputeProgressAsync` : progression recalculée après quiz/exercice (module complété = quiz
+  réussi ET exercices corrects) → 100 % clôt l'inscription avec certificat.
+
+**Frontend**
+- `ModuleLearn` : soumission réelle des exercices, statut persisté, « Recommencer », badges de
+  résultats de quiz, barre de progression formation.
+- `GestionModules` : lien « 👁️ Aperçu » (vue apprenant) par module.
+
+**Comment tester :** formateur → générer un module (cours + exercices + quiz) → « 👁️ Aperçu » ;
+côté apprenant inscrit : faire les exercices + réussir le quiz → la progression passe à 100 %.
+
+**Tests :** 42/42 au vert (dont 4 sur exercices/progression). Build .NET + build front OK.

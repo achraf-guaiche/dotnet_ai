@@ -16,6 +16,7 @@ public interface IApplicationDbContext
     DbSet<QuestionQuiz> QuestionsQuiz { get; }
     DbSet<Inscription> Inscriptions { get; }
     DbSet<ResultatExamen> ResultatsExamens { get; }
+    DbSet<ResultatExercice> ResultatsExercices { get; }
     DbSet<SessionAvatarIA> SessionsAvatarIA { get; }
     DbSet<ActivityLog> ActivityLogs { get; }
 

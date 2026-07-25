@@ -17,11 +17,18 @@ public record GeneratedCourse(
     string Contenu,              // HTML du cours affiché à l'apprenant
     string TextePourAvatar,     // script récité par le prof IA vidéo interactif
     int DureeEstimeeMinutes,
-    List<GeneratedQuestion> Quiz);
+    List<GeneratedQuestion> Quiz,
+    List<GeneratedExercice> Exercices);
 
 public record GeneratedQuestion(
     string Enonce,
     List<string> Choix,
     string BonneReponse,
     string? Explication,
+    int Points);
+
+public record GeneratedExercice(
+    string Enonce,
+    string TypeReponse,         // TexteLibre | ChoixMultiple | VraiOuFaux | FichierUpload
+    string? ReponseCorrecte,   // si fournie → correction automatique
     int Points);

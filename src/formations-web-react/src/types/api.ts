@@ -183,12 +183,44 @@ export interface GeneratedModuleResult {
   textePourAvatar: string;
   dureeEstimeeMinutes: number;
   nbQuestionsGenerees: number;
+  nbExercicesGeneres: number;
 }
 
 export interface GenerateAllResult {
   formationId: number;
   modulesGeneres: number;
   modules: GeneratedModuleResult[];
+}
+
+// Exercices : soumission + résultats
+export interface SubmitExerciceResult {
+  isCorrect: boolean;
+  correctionAuto: boolean;
+  reponseCorrecte?: string | null;
+  tentativeNumero: number;
+}
+
+export interface ExerciceResult {
+  exerciceId: number;
+  isCorrect: boolean;
+  reponse?: string | null;
+  tentativeNumero: number;
+  datePassage: string;
+}
+
+export interface ExamenResult {
+  examenId: number;
+  score: number;
+  isReussi: boolean;
+  tentativeNumero: number;
+  datePassage: string;
+}
+
+export interface MesResultatsModule {
+  exercices: ExerciceResult[];
+  examens: ExamenResult[];
+  moduleComplete: boolean;
+  progressionFormation: number;
 }
 
 // Réponse de GET /api/modules/{id}

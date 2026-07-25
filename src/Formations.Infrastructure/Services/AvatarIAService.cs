@@ -189,9 +189,12 @@ public class AvatarIAService : IAvatarIAService, ICourseGenerationService
               "dureeEstimeeMinutes": <entier>,
               "quiz": [
                 {"enonce": "<question>", "choix": ["A","B","C","D"], "bonneReponse": "<le texte exact de la bonne option>", "explication": "<courte explication>", "points": 1}
+              ],
+              "exercices": [
+                {"enonce": "<consigne de l'exercice>", "typeReponse": "TexteLibre|ChoixMultiple|VraiOuFaux", "reponseCorrecte": "<réponse attendue, ou null si ouvert>", "points": 10}
               ]
             }
-            Génère entre 3 et 5 questions de quiz. Réponds en français.
+            Génère entre 3 et 5 questions de quiz et entre 2 et 4 exercices. Réponds en français.
             """;
         var user = $"Formation : « {formationTitre} ». Module : « {moduleTitre} ». Demande du formateur : {prompt}";
 
@@ -217,9 +220,14 @@ public class AvatarIAService : IAvatarIAService, ICourseGenerationService
                 q.Enonce ?? "", q.Choix ?? new(), q.BonneReponse ?? "", q.Explication,
                 q.Points <= 0 ? 1 : q.Points)).ToList();
 
+            var exercices = (dto.Exercices ?? new()).Select(e => new GeneratedExercice(
+                e.Enonce ?? "", string.IsNullOrWhiteSpace(e.TypeReponse) ? "TexteLibre" : e.TypeReponse,
+                string.IsNullOrWhiteSpace(e.ReponseCorrecte) ? null : e.ReponseCorrecte,
+                e.Points <= 0 ? 10 : e.Points)).Where(e => !string.IsNullOrWhiteSpace(e.Enonce)).ToList();
+
             return new GeneratedCourse(
                 dto.Contenu ?? "", dto.TextePourAvatar ?? "",
-                dto.DureeEstimeeMinutes <= 0 ? 15 : dto.DureeEstimeeMinutes, quiz);
+                dto.DureeEstimeeMinutes <= 0 ? 15 : dto.DureeEstimeeMinutes, quiz, exercices);
         }
         catch (Exception ex)
         {
@@ -246,6 +254,13 @@ public class AvatarIAService : IAvatarIAService, ICourseGenerationService
             new("Comment poser une question pendant la présentation ?",
                 new() { "Par email", "Via le chat", "En appelant", "Impossible" }, "Via le chat",
                 "Le prof IA répond en direct dans le chat.", 1),
+        },
+        Exercices: new()
+        {
+            new($"Expliquez avec vos propres mots la première notion clé du module « {moduleTitre} ».",
+                "TexteLibre", null, 10),
+            new("La notion clé 1 est-elle abordée avant la notion clé 2 ?",
+                "VraiOuFaux", "Vrai", 5),
         });
 
     // Miroir de désérialisation (souple face aux variations de casse/champ du LLM).
@@ -255,6 +270,7 @@ public class AvatarIAService : IAvatarIAService, ICourseGenerationService
         public string? TextePourAvatar { get; set; }
         public int DureeEstimeeMinutes { get; set; }
         public List<GeneratedQuestionJson>? Quiz { get; set; }
+        public List<GeneratedExerciceJson>? Exercices { get; set; }
     }
 
     private sealed class GeneratedQuestionJson
@@ -263,6 +279,14 @@ public class AvatarIAService : IAvatarIAService, ICourseGenerationService
         public List<string>? Choix { get; set; }
         public string? BonneReponse { get; set; }
         public string? Explication { get; set; }
+        public int Points { get; set; }
+    }
+
+    private sealed class GeneratedExerciceJson
+    {
+        public string? Enonce { get; set; }
+        public string? TypeReponse { get; set; }
+        public string? ReponseCorrecte { get; set; }
         public int Points { get; set; }
     }
 

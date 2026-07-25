@@ -73,12 +73,26 @@ public record CreateQuestionQuizRequest(int ExamenId, string Enonce, List<string
 
 public record ExamenAttemptRequest(int ExamenId, Dictionary<int, string> Reponses, int DureeSecondes);
 
+// Soumission / résultats d'exercices.
+public record SubmitExerciceRequest(string? Reponse);
+public record SubmitExerciceResult(bool IsCorrect, bool CorrectionAuto, string? ReponseCorrecte, int TentativeNumero);
+
+public record ExerciceResultDto(int ExerciceId, bool IsCorrect, string? Reponse, int TentativeNumero, DateTime DatePassage);
+public record ExamenResultDto(int ExamenId, decimal Score, bool IsReussi, int TentativeNumero, DateTime DatePassage);
+
+// Résultats de l'apprenant pour un module (dernière tentative par exercice/examen) + progression.
+public record MesResultatsModuleDto(
+    List<ExerciceResultDto> Exercices,
+    List<ExamenResultDto> Examens,
+    bool ModuleComplete,
+    decimal ProgressionFormation);
+
 // Génération IA du contenu d'un module (cours + script avatar + quiz).
 public record GenerateModuleRequest(string Prompt);
 
 public record GeneratedModuleResult(
     int ModuleId, string Titre, string Contenu, string TextePourAvatar,
-    int DureeEstimeeMinutes, int NbQuestionsGenerees);
+    int DureeEstimeeMinutes, int NbQuestionsGenerees, int NbExercicesGeneres);
 
 public record QuestionReviewDto(
     int QuestionId, string Enonce, string UserAnswer,

@@ -5,6 +5,7 @@ using Formations.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using System.Security.Claims;
 using System.Text.Json;
 
 namespace Formations.Api.Controllers;
@@ -71,10 +72,27 @@ public class ModulesController : ControllerBase
             });
         }
 
+        // Exercices : on remplace ceux du module par ceux générés.
+        var existingExercices = await context.Exercices.Where(e => e.ModuleId == module.Id).ToListAsync(ct);
+        if (existingExercices.Count > 0) context.Exercices.RemoveRange(existingExercices);
+        foreach (var ex in generated.Exercices)
+        {
+            var type = Enum.TryParse<TypeReponse>(ex.TypeReponse, true, out var t) ? t : TypeReponse.TexteLibre;
+            context.Exercices.Add(new Exercice
+            {
+                ModuleId = module.Id,
+                Enonce = ex.Enonce,
+                TypeReponse = type,
+                CorrectionAuto = !string.IsNullOrWhiteSpace(ex.ReponseCorrecte),
+                ReponseCorrecte = ex.ReponseCorrecte,
+                Points = ex.Points,
+            });
+        }
+
         await context.SaveChangesAsync(ct);
 
         return new GeneratedModuleResult(module.Id, module.Titre, generated.Contenu,
-            generated.TextePourAvatar, generated.DureeEstimeeMinutes, generated.Quiz.Count);
+            generated.TextePourAvatar, generated.DureeEstimeeMinutes, generated.Quiz.Count, generated.Exercices.Count);
     }
 
     [HttpGet("formation/{formationId:int}")]
@@ -197,6 +215,127 @@ public class ModulesController : ControllerBase
         return Ok(new { id = cours.Id });
     }
 
+    // Recalcule la progression d'un apprenant sur une formation. Un module est « complété »
+    // quand son quiz (s'il en a un) est réussi ET que tous ses exercices (s'il en a) sont corrects.
+    // Idempotent : appelé après chaque tentative de quiz ou d'exercice. No-op si l'utilisateur
+    // n'est pas inscrit (ex. formateur en prévisualisation).
+    internal static async Task RecomputeProgressAsync(
+        IApplicationDbContext context, string userId, int formationId, CancellationToken ct)
+    {
+        var inscription = await context.Inscriptions
+            .FirstOrDefaultAsync(i => i.UserId == userId && i.FormationId == formationId, ct);
+        if (inscription is null) return;
+
+        var modules = await context.Modules
+            .Where(m => m.FormationId == formationId)
+            .Select(m => new
+            {
+                ExamenIds = m.Examens.Where(e => e.Questions.Any()).Select(e => e.Id).ToList(),
+                ExerciceIds = m.Exercices.Select(e => e.Id).ToList(),
+            })
+            .ToListAsync(ct);
+
+        var passedExamenIds = await context.ResultatsExamens
+            .Where(r => r.UserId == userId && r.IsReussi).Select(r => r.ExamenId).Distinct().ToListAsync(ct);
+        var correctExerciceIds = await context.ResultatsExercices
+            .Where(r => r.UserId == userId && r.IsCorrect).Select(r => r.ExerciceId).Distinct().ToListAsync(ct);
+
+        var completed = modules.Count(m =>
+            (m.ExamenIds.Count == 0 || m.ExamenIds.Any(passedExamenIds.Contains)) &&
+            (m.ExerciceIds.Count == 0 || m.ExerciceIds.All(correctExerciceIds.Contains)));
+
+        var total = inscription.TotalModules > 0 ? inscription.TotalModules : modules.Count;
+        inscription.ModulesCompletes = Math.Min(completed, total);
+        inscription.ProgressionPourcent = total > 0
+            ? Math.Round((decimal)inscription.ModulesCompletes / total * 100, 2) : 0;
+
+        if (inscription.ProgressionPourcent >= 100 && inscription.Statut == StatutInscription.EnCours)
+        {
+            inscription.Statut = StatutInscription.Termine;
+            inscription.DateTerminee = DateTime.UtcNow;
+            inscription.NumeroCertificat ??= $"CERT-{DateTime.UtcNow:yyyyMM}-{inscription.Id:D6}";
+        }
+
+        await context.SaveChangesAsync(ct);
+    }
+
+    // Soumet une réponse d'exercice : évalue, persiste la tentative, met à jour la progression.
+    [HttpPost("exercices/{exerciceId:int}/submit")]
+    [Authorize]
+    public async Task<IActionResult> SubmitExercice(int exerciceId, [FromBody] SubmitExerciceRequest request, CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var exercice = await _context.Exercices.Include(e => e.Module)
+            .FirstOrDefaultAsync(e => e.Id == exerciceId, ct);
+        if (exercice is null) return NotFound();
+
+        // Correction auto si une réponse correcte est définie ; sinon la soumission est acceptée.
+        var correctionAuto = exercice.CorrectionAuto && !string.IsNullOrWhiteSpace(exercice.ReponseCorrecte);
+        var isCorrect = correctionAuto
+            ? string.Equals((request.Reponse ?? "").Trim(), exercice.ReponseCorrecte!.Trim(), StringComparison.OrdinalIgnoreCase)
+            : true;
+
+        var tentatives = await _context.ResultatsExercices.CountAsync(r => r.UserId == userId && r.ExerciceId == exerciceId, ct);
+
+        _context.ResultatsExercices.Add(new ResultatExercice
+        {
+            UserId = userId,
+            ExerciceId = exerciceId,
+            Reponse = request.Reponse,
+            IsCorrect = isCorrect,
+            TentativeNumero = tentatives + 1,
+        });
+        await _context.SaveChangesAsync(ct);
+
+        await RecomputeProgressAsync(_context, userId, exercice.Module.FormationId, ct);
+
+        return Ok(new SubmitExerciceResult(isCorrect, correctionAuto,
+            correctionAuto ? exercice.ReponseCorrecte : null, tentatives + 1));
+    }
+
+    // Résultats de l'apprenant pour un module (dernière tentative par exercice/examen).
+    [HttpGet("{moduleId:int}/mes-resultats")]
+    [Authorize]
+    public async Task<IActionResult> MesResultats(int moduleId, CancellationToken ct)
+    {
+        var userId = User.FindFirstValue(ClaimTypes.NameIdentifier)!;
+        var module = await _context.Modules
+            .Include(m => m.Exercices)
+            .Include(m => m.Examens)
+            .FirstOrDefaultAsync(m => m.Id == moduleId, ct);
+        if (module is null) return NotFound();
+
+        var exerciceIds = module.Exercices.Select(e => e.Id).ToList();
+        var examenIds = module.Examens.Select(e => e.Id).ToList();
+
+        var exResults = await _context.ResultatsExercices
+            .Where(r => r.UserId == userId && exerciceIds.Contains(r.ExerciceId))
+            .ToListAsync(ct);
+        var examResults = await _context.ResultatsExamens
+            .Where(r => r.UserId == userId && examenIds.Contains(r.ExamenId))
+            .ToListAsync(ct);
+
+        // Dernière tentative par exercice / examen.
+        var exercices = exResults
+            .GroupBy(r => r.ExerciceId)
+            .Select(g => g.OrderByDescending(r => r.TentativeNumero).First())
+            .Select(r => new ExerciceResultDto(r.ExerciceId, r.IsCorrect, r.Reponse, r.TentativeNumero, r.DatePassage))
+            .ToList();
+        var examens = examResults
+            .GroupBy(r => r.ExamenId)
+            .Select(g => g.OrderByDescending(r => r.TentativeNumero).First())
+            .Select(r => new ExamenResultDto(r.ExamenId, r.Score, r.IsReussi, r.TentativeNumero, r.DatePassage))
+            .ToList();
+
+        var inscription = await _context.Inscriptions
+            .FirstOrDefaultAsync(i => i.UserId == userId && i.FormationId == module.FormationId, ct);
+
+        var quizOk = examenIds.Count == 0 || examens.Any(e => e.IsReussi);
+        var exOk = exerciceIds.Count == 0 || exerciceIds.All(id => exercices.Any(r => r.ExerciceId == id && r.IsCorrect));
+
+        return Ok(new MesResultatsModuleDto(exercices, examens, quizOk && exOk, inscription?.ProgressionPourcent ?? 0));
+    }
+
     // Génère (ou régénère) le contenu IA d'un module à partir d'un prompt.
     [HttpPost("{moduleId:int}/generate")]
     [Authorize(Roles = "Admin,Formateur")]
@@ -306,6 +445,7 @@ public class ModulesController : ControllerBase
 
         var examen = await _context.Examens
             .Include(e => e.Questions)
+            .Include(e => e.Module)
             .FirstOrDefaultAsync(e => e.Id == examenId, ct);
         if (examen is null) return NotFound();
 
@@ -350,6 +490,10 @@ public class ModulesController : ControllerBase
 
         _context.ResultatsExamens.Add(resultat);
         await _context.SaveChangesAsync(ct);
+
+        // Met à jour la progression (le quiz réussi peut compléter le module). Module chargé ci-dessus.
+        if (examen.Module is not null)
+            await RecomputeProgressAsync(_context, userId, examen.Module.FormationId, ct);
 
         return Ok(new ExamenAttemptResult(
             Math.Round(score, 2), isReussi, correctCount,

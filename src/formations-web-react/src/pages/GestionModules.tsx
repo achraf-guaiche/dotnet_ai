@@ -115,6 +115,12 @@ export function GestionModules() {
                     {m.hasCours ? '📖 cours' : 'pas de cours'} · {m.nbExercices} exercice(s) · {m.nbExamens} examen(s)
                   </div>
                 </div>
+                <Link
+                  to={`/modules/${m.id}/apprendre`}
+                  className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50"
+                  title="Voir le module tel que l'apprenant le voit">
+                  👁️ Aperçu
+                </Link>
                 <button
                   onClick={() => setOpenId(openId === m.id ? null : m.id)}
                   className="rounded-lg border border-slate-300 px-3 py-1.5 text-sm font-medium text-slate-600 hover:bg-slate-50">
@@ -199,7 +205,7 @@ function FormationGeneratePanel({ formationId, onGenerated }: { formationId: num
       const res = await api.post<GenerateAllResult>(`api/formations/${formationId}/generate`, {
         prompt: prompt.trim(),
       });
-      setMsg(`✅ Contenu généré pour ${res.modulesGeneres} module(s) : cours, script du prof IA et quiz.`);
+      setMsg(`✅ Contenu généré pour ${res.modulesGeneres} module(s) : cours, script du prof IA, exercices et quiz.`);
       onGenerated();
     } catch (e) {
       setErr(e instanceof ApiError ? e.message : 'Échec de la génération.');
@@ -255,7 +261,7 @@ function ModuleGeneratePanel({ moduleId, onGenerated }: { moduleId: number; onGe
       const res = await api.post<GeneratedModuleResult>(`api/modules/${moduleId}/generate`, {
         prompt: prompt.trim(),
       });
-      setMsg(`✅ Généré : cours + script prof IA + ${res.nbQuestionsGenerees} question(s) de quiz.`);
+      setMsg(`✅ Généré : cours + script prof IA + ${res.nbExercicesGeneres} exercice(s) + ${res.nbQuestionsGenerees} question(s) de quiz.`);
       setPrompt('');
       onGenerated();
     } catch (e) {

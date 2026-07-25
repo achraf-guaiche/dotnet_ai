@@ -24,6 +24,13 @@ public class ExamenScoringTests
         {
             Id = 1,
             ModuleId = 1,
+            Module = new Module
+            {
+                Id = 1,
+                FormationId = 1,
+                Titre = "Module",
+                Formation = new Formation { Id = 1, Titre = "F", CategorieId = 1 },
+            },
             Titre = "Quiz",
             NoteMinPassage = noteMinPassage,
             TentativesMax = tentativesMax,

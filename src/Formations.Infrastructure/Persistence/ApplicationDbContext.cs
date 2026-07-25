@@ -20,6 +20,7 @@ public class ApplicationDbContext : IdentityDbContext<ApplicationUser>, IApplica
     public DbSet<QuestionQuiz> QuestionsQuiz => Set<QuestionQuiz>();
     public DbSet<Inscription> Inscriptions => Set<Inscription>();
     public DbSet<ResultatExamen> ResultatsExamens => Set<ResultatExamen>();
+    public DbSet<ResultatExercice> ResultatsExercices => Set<ResultatExercice>();
     public DbSet<SessionAvatarIA> SessionsAvatarIA => Set<SessionAvatarIA>();
     public DbSet<ActivityLog> ActivityLogs => Set<ActivityLog>();
 
