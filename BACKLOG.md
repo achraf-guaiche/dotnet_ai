@@ -205,18 +205,26 @@
     La parole est déclenchée côté navigateur par le SDK.
 - [x] ~~**BUG-02** Vidéo de l'avatar non affichée.~~
   - Corrigé (Sprint 9) : intégration `@anam-ai/js-sdk` dans `AvatarSession.tsx`.
-- [ ] **BUG-03** Les appels réels OpenAI / Google / Groq ne sont pas testés (aucune clé
-  disponible lors du développement) — seules les formes de requête/réponse documentées sont implémentées.
-- [~] **DETTE-01** Tests unitaires des services métier — **26 tests** désormais.
+- [x] ~~**BUG-03** Appels providers LLM (OpenAI / Google / Groq / Claude) non vérifiés.~~
+  - Couvert par tests : `AvatarIAServiceLlmTests` valide, via un `HttpMessageHandler` simulé,
+    la construction de requête (endpoint, en-têtes d'auth, corps) **et** le parsing de réponse
+    pour chaque fournisseur, plus le mode mock (aucun appel réseau sans clé). Un smoke test
+    « live » reste possible en fournissant une vraie clé (`LLM__ApiKey`), mais n'est plus bloquant.
+- [x] ~~**DETTE-01** Tests unitaires des services métier.~~ — **35 tests** désormais.
   - Couvert : scoring d'examen (pondération par points, casse/espaces, `TentativesMax`, 404),
     progression d'inscription (%, complétion + certificat, plancher/plafond, isolation par
-    utilisateur), attribution de rôle. Reste : appels provider LLM (dépend de BUG-03, clés requises).
-- [ ] **DETTE-02** Déploiement Railway non vérifié de bout en bout.
+    utilisateur), attribution de rôle, **et les 5 fournisseurs LLM** (voir BUG-03).
+- [~] **DETTE-02** Déploiement Railway — configuration prête et vérifiée (`railway.toml` :
+  `Dockerfile`, `startCommand`, `healthcheckPath=/health` qui existe bien, `PORT=8080`).
+  Le déploiement réel sur le compte Railway reste à exécuter (nécessite les identifiants).
 - [x] ~~**DETTE-03** L'attribution du rôle `Formateur` par un admin ne crée pas la fiche `Formateur`.~~
   - Corrigé : `AdminController.ChangeRole` crée la fiche `Formateur` (si absente) lors d'une
     promotion en Formateur, comme à l'inscription (US-36). Testé (`ChangeRoleTests`, 3 cas).
-- [ ] **DETTE-04** Modération des inscriptions formateur : aujourd'hui n'importe qui peut se
-  déclarer formateur. Prévoir une validation par un admin (compte en attente) ou un code d'invitation.
+- [x] ~~**DETTE-04** Modération des inscriptions formateur.~~
+  - Corrigé : code d'invitation optionnel `Auth:FormateurInviteCode`. S'il est configuré, le rôle
+    Formateur l'exige à l'inscription (champ « code d'invitation » côté front) ; un code manquant
+    ou invalide crée un compte Apprenant. Non configuré = inscription formateur ouverte
+    (rétrocompatible). Testé (`AuthServiceTests`, 3 cas). Env : `.env.example` + `docker-compose.yml`.
 
 ---
 
@@ -347,3 +355,24 @@ le message d'accueil est désormais persisté dans l'historique de session.
    en **Apprenant** (jamais Admin)
 
 **Tests :** 13/13 tests unitaires au vert (dont 4 cas sur la liste blanche des rôles)
+
+### Sprint 10 ✅
+**Livré :** apurement de la dette technique — journal d'activité, couverture de tests, modération formateur
+
+**US-09 (journal d'activité)** — filtre `action` ajouté à `GET /api/admin/logs` + page React
+`/admin/logs` (tableau horodaté, filtre, pagination) accessible depuis le dashboard.
+
+**DETTE-03** — `AdminController.ChangeRole` crée la fiche `Formateur` à la promotion (idempotent).
+
+**DETTE-01 / BUG-03 (tests 13 → 35)** — harnais EF Core InMemory + `HttpMessageHandler` simulé :
+- scoring d'examen (pondération, casse/espaces, `TentativesMax`, 404)
+- progression (%, complétion → certificat, plancher/plafond, isolation par utilisateur)
+- 5 fournisseurs LLM (endpoint, en-têtes d'auth, corps, parsing, mode mock)
+
+**DETTE-04 (modération formateur)** — code d'invitation optionnel `Auth:FormateurInviteCode` :
+si configuré, exigé pour le rôle Formateur ; sinon inscription ouverte (rétrocompatible).
+Champ « code d'invitation » côté front, redirection selon le rôle réellement accordé.
+
+**Reste (hors périmètre local) :** DETTE-02 déploiement réel sur Railway (identifiants requis).
+
+**Tests :** 35/35 au vert. Build .NET + build front OK.

@@ -56,6 +56,8 @@ services:
       - LLM__ApiKey=${LLM__ApiKey:-}
       - LLM__Model=${LLM__Model:-}
       - LLM__BaseUrl=${LLM__BaseUrl:-}
+      # Modération formateur (DETTE-04) : vide = inscription formateur ouverte.
+      - Auth__FormateurInviteCode=${Auth__FormateurInviteCode:-}
       - Email__Host=${Email__Host:-smtp.gmail.com}
       - Email__Username=${Email__Username:-}
       - Email__Password=${Email__Password:-}

@@ -7,7 +7,10 @@ public record RegisterRequest(
     string Email,
     string Password,
     string ConfirmPassword,
-    string Role = RegisterRequest.RoleApprenant
+    string Role = RegisterRequest.RoleApprenant,
+    // Code d'invitation formateur (DETTE-04). Requis uniquement si le serveur configure
+    // Auth:FormateurInviteCode ; sinon ignoré. Un code absent/incorrect rétrograde en Apprenant.
+    string? InviteCode = null
 )
 {
     public const string RoleApprenant = "Apprenant";

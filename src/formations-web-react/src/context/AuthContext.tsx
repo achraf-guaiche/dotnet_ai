@@ -23,7 +23,8 @@ interface AuthContextValue {
     password: string,
     confirmPassword: string,
     role: RegisterRole,
-  ) => Promise<void>;
+    inviteCode?: string,
+  ) => Promise<string[]>;
   logout: () => void;
 }
 
@@ -73,6 +74,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       password: string,
       confirmPassword: string,
       role: RegisterRole = 'Apprenant',
+      inviteCode?: string,
     ) => {
       const res = await api.post<AuthResponse>('api/auth/register', {
         fullName,
@@ -80,8 +82,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         password,
         confirmPassword,
         role,
+        inviteCode: inviteCode || null,
       });
-      setUser(persistUser(res));
+      const u = persistUser(res);
+      setUser(u);
+      return u.roles; // rôles réellement accordés (peut différer si rétrogradation formateur)
     };
 
     const logout = () => {

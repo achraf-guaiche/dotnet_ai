@@ -4,6 +4,7 @@ using Formations.Application.Auth.Services;
 using Formations.Application.Common.Interfaces;
 using Formations.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 using Moq;
 using Xunit;
 
@@ -15,7 +16,7 @@ public class AuthServiceTests
     private readonly Mock<IJwtService> _jwtServiceMock;
     private readonly Mock<IEmailService> _emailServiceMock;
     private readonly Mock<IApplicationDbContext> _contextMock;
-    private readonly AuthService _sut;
+    private AuthService _sut;
 
     public AuthServiceTests()
     {
@@ -25,7 +26,17 @@ public class AuthServiceTests
         _emailServiceMock = new Mock<IEmailService>();
         _contextMock = new Mock<IApplicationDbContext>();
 
-        _sut = new AuthService(_userManagerMock.Object, _jwtServiceMock.Object, _emailServiceMock.Object, _contextMock.Object);
+        _sut = BuildService();
+    }
+
+    // IConfiguration en mémoire (permet de simuler Auth:FormateurInviteCode).
+    private AuthService BuildService(params (string Key, string Value)[] settings)
+    {
+        var config = new ConfigurationBuilder()
+            .AddInMemoryCollection(settings.ToDictionary(x => x.Key, x => (string?)x.Value))
+            .Build();
+        return new AuthService(_userManagerMock.Object, _jwtServiceMock.Object,
+            _emailServiceMock.Object, _contextMock.Object, config);
     }
 
     [Fact]
@@ -99,6 +110,50 @@ public class AuthServiceTests
         result.IsSuccess.Should().BeTrue();
         _userManagerMock.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), roleAttendu), Times.Once);
         _userManagerMock.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Admin"), Times.Never);
+    }
+
+    [Fact]
+    public async Task Register_Formateur_WithWrongInviteCode_DowngradesToApprenant()
+    {
+        // Un code est configuré côté serveur mais le client fournit un mauvais code.
+        _sut = BuildService(("Auth:FormateurInviteCode", "SECRET-2026"));
+        SetupSuccessfulRegistration("Apprenant");
+        _contextMock.Setup(c => c.Formateurs).Returns(MockDbSet<Formateur>());
+        var request = new RegisterRequest("Jean", "jean@test.com", "Password@1", "Password@1", "Formateur", "MAUVAIS");
+
+        var result = await _sut.RegisterAsync(request);
+
+        result.IsSuccess.Should().BeTrue();
+        _userManagerMock.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Apprenant"), Times.Once);
+        _userManagerMock.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Formateur"), Times.Never);
+    }
+
+    [Fact]
+    public async Task Register_Formateur_WithValidInviteCode_GrantsFormateur()
+    {
+        _sut = BuildService(("Auth:FormateurInviteCode", "SECRET-2026"));
+        SetupSuccessfulRegistration("Formateur");
+        _contextMock.Setup(c => c.Formateurs).Returns(MockDbSet<Formateur>());
+        var request = new RegisterRequest("Jean", "jean@test.com", "Password@1", "Password@1", "Formateur", "SECRET-2026");
+
+        var result = await _sut.RegisterAsync(request);
+
+        result.IsSuccess.Should().BeTrue();
+        _userManagerMock.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Formateur"), Times.Once);
+    }
+
+    [Fact]
+    public async Task Register_Formateur_WhenNoCodeConfigured_GrantsFormateur()
+    {
+        // Aucun code configuré → comportement ouvert (rétrocompatible).
+        SetupSuccessfulRegistration("Formateur");
+        _contextMock.Setup(c => c.Formateurs).Returns(MockDbSet<Formateur>());
+        var request = new RegisterRequest("Jean", "jean@test.com", "Password@1", "Password@1", "Formateur");
+
+        var result = await _sut.RegisterAsync(request);
+
+        result.IsSuccess.Should().BeTrue();
+        _userManagerMock.Verify(m => m.AddToRoleAsync(It.IsAny<ApplicationUser>(), "Formateur"), Times.Once);
     }
 
     private void SetupSuccessfulRegistration(string role)

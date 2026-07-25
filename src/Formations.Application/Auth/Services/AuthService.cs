@@ -3,6 +3,7 @@ using Formations.Application.Common.Interfaces;
 using Formations.Application.Common.Models;
 using Formations.Domain.Entities;
 using Microsoft.AspNetCore.Identity;
+using Microsoft.Extensions.Configuration;
 
 namespace Formations.Application.Auth.Services;
 
@@ -12,17 +13,20 @@ public class AuthService
     private readonly IJwtService _jwtService;
     private readonly IEmailService _emailService;
     private readonly IApplicationDbContext _context;
+    private readonly IConfiguration _config;
 
     public AuthService(
         UserManager<ApplicationUser> userManager,
         IJwtService jwtService,
         IEmailService emailService,
-        IApplicationDbContext context)
+        IApplicationDbContext context,
+        IConfiguration config)
     {
         _userManager = userManager;
         _jwtService = jwtService;
         _emailService = emailService;
         _context = context;
+        _config = config;
     }
 
     public async Task<Result<AuthResponse>> RegisterAsync(RegisterRequest request, CancellationToken ct = default)
@@ -34,6 +38,16 @@ public class AuthService
         var roleDemande = RegisterRequest.RolesAutorises.Contains(request.Role)
             ? request.Role
             : RegisterRequest.RoleApprenant;
+
+        // Modération formateur (DETTE-04) : si un code d'invitation est configuré côté serveur,
+        // il est exigé pour obtenir le rôle Formateur. Code absent/incorrect → rétrogradation
+        // silencieuse en Apprenant (l'inscription réussit tout de même).
+        if (roleDemande == RegisterRequest.RoleFormateur)
+        {
+            var requiredCode = _config["Auth:FormateurInviteCode"];
+            if (!string.IsNullOrWhiteSpace(requiredCode) && request.InviteCode != requiredCode)
+                roleDemande = RegisterRequest.RoleApprenant;
+        }
 
         var user = new ApplicationUser
         {

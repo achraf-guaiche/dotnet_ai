@@ -29,6 +29,7 @@ export function Register() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [inviteCode, setInviteCode] = useState('');
   const [error, setError] = useState('');
   const [loading, setLoading] = useState(false);
 
@@ -41,8 +42,11 @@ export function Register() {
     setLoading(true);
     setError('');
     try {
-      await register(fullName, email, password, confirmPassword, role);
-      navigate(role === 'Formateur' ? '/gestion/formations' : '/formations', { replace: true });
+      const grantedRoles = await register(fullName, email, password, confirmPassword, role, inviteCode);
+      // On redirige selon le rôle réellement accordé (une demande Formateur peut être
+      // rétrogradée en Apprenant si le code d'invitation est requis et invalide).
+      const isFormateur = grantedRoles.includes('Formateur');
+      navigate(isFormateur ? '/gestion/formations' : '/formations', { replace: true });
     } catch (err) {
       setError(
         err instanceof ApiError ? err.message : "Erreur lors de l'inscription. Vérifiez vos informations.",
@@ -97,6 +101,21 @@ export function Register() {
               })}
             </div>
           </fieldset>
+
+          {role === 'Formateur' && (
+            <Field label="Code d'invitation formateur (si demandé)">
+              <input
+                type="text"
+                value={inviteCode}
+                onChange={(e) => setInviteCode(e.target.value)}
+                placeholder="Laisser vide si aucun code ne vous a été fourni"
+                className="input"
+              />
+              <span className="text-xs text-slate-400">
+                Si la plateforme exige un code, un code manquant ou invalide crée un compte Apprenant.
+              </span>
+            </Field>
+          )}
 
           <Field label="Nom complet">
             <input
