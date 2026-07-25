@@ -197,6 +197,32 @@
 
 ---
 
+## EPIC 12 — Génération de contenu par IA
+
+### Sprint 11 — Studio de génération IA
+
+**User Stories :**
+
+- [x] **US-37** En tant que formateur, je veux générer le contenu d'un module à partir d'un prompt,
+  afin de ne pas tout rédiger à la main.
+  - Critères :
+    - un prompt par module (bouton « Générer / régénérer ce module ») **et** un prompt global au
+      niveau formation (« Générer tous les modules »)
+    - l'IA produit le **cours** (HTML), le **script du prof IA vidéo** (`TextePourAvatar`) et un
+      **quiz** (3–5 QCM avec bonne réponse + explication)
+    - contenu persisté : upsert du `Cours`, examen créé si absent, questions régénérées (non cumulées)
+    - mode dev : sans clé LLM, un contenu d'exemple déterministe est produit (aucun appel externe)
+  - Réalisé : `ICourseGenerationService` (impl. `AvatarIAService`, dispatch LLM partagé avec le chat),
+    `POST /api/modules/{id}/generate`, `POST /api/formations/{id}/generate`, panneaux React dans
+    `GestionModules`. Testé (`CourseGenerationTests`, 3 cas).
+- [x] **US-38** En tant qu'apprenant, je veux que le prof IA vidéo de chaque module présente le
+  contenu généré et réponde dans le chat.
+  - Réalisé : `AvatarIAController.StartSession` lit `module.Cours.TextePourAvatar` → l'avatar
+    interactif existant (`/modules/:id/avatar`) récite le script généré, chat inclus. Aucun rendu
+    de fichier vidéo (avatar temps réel Anam, déjà en place).
+
+---
+
 ## ⚠️ Dette technique / À corriger au prochain sprint
 
 - [x] ~~**BUG-01** `POST /api/avatar/sessions/message` renvoie 500 (Anam `POST /v1/sessions/speak` → 405).~~
@@ -376,3 +402,26 @@ Champ « code d'invitation » côté front, redirection selon le rôle réelleme
 **Reste (hors périmètre local) :** DETTE-02 déploiement réel sur Railway (identifiants requis).
 
 **Tests :** 35/35 au vert. Build .NET + build front OK.
+
+### Sprint 11 ✅
+**Livré :** génération du contenu pédagogique par IA (US-37, US-38)
+
+**Backend**
+- `ICourseGenerationService` implémenté par `AvatarIAService` (le dispatch LLM claude/openai/
+  google/groq est factorisé et partagé entre le chat et la génération).
+- Le LLM renvoie un JSON structuré `{ contenu, textePourAvatar, dureeEstimeeMinutes, quiz[] }`,
+  parsé de façon tolérante (blocs ```json, casse). Mode mock déterministe sans clé.
+- `POST /api/modules/{id}/generate` : upsert du cours + examen + questions (remplacées).
+- `POST /api/formations/{id}/generate` : itère les modules et applique le prompt global.
+
+**Frontend** — panneaux de génération dans `GestionModules` : un global (« Générer tous les
+modules ») et un par module (« Générer / régénérer »). Les éditeurs se remontent pour afficher le
+contenu généré.
+
+**Vidéo** — aucun nouveau rendu : l'avatar interactif temps réel existant présente
+`Cours.TextePourAvatar` du module (chat inclus).
+
+**Comment tester :** `docker compose up --build` → connexion formateur → une formation avec modules →
+« Gérer le contenu » → saisir un prompt → « Générer ». Puis côté apprenant, ouvrir le module → 🤖 IA.
+
+**Tests :** 38/38 au vert (dont 3 sur la génération). Build .NET + build front OK.

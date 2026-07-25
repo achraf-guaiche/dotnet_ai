@@ -1,10 +1,12 @@
 using FluentAssertions;
 using Formations.Api.Controllers;
+using Formations.Application.Common.Interfaces;
 using Formations.Application.Modules.DTOs;
 using Formations.Domain.Entities;
 using Formations.Infrastructure.Persistence;
 using Formations.Tests.Unit.TestHelpers;
 using Microsoft.AspNetCore.Mvc;
+using Moq;
 using Xunit;
 
 namespace Formations.Tests.Unit.Modules;
@@ -35,7 +37,7 @@ public class ExamenScoringTests
         ctx.Examens.Add(examen);
         ctx.SaveChanges();
 
-        var controller = new ModulesController(ctx);
+        var controller = new ModulesController(ctx, Mock.Of<ICourseGenerationService>());
         DbContextFactory.SetUser(controller, UserId);
         return (controller, ctx);
     }

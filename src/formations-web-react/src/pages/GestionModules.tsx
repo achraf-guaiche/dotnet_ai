@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState, type FormEvent } from 'react';
 import { Link, useParams } from 'react-router-dom';
 import { api, ApiError } from '../lib/apiClient';
-import type { ModuleDto, ModuleContent } from '../types/api';
+import type { ModuleDto, ModuleContent, GeneratedModuleResult, GenerateAllResult } from '../types/api';
 import { Spinner, SpinnerSm } from '../components/Spinner';
 
 export function GestionModules() {
@@ -96,6 +96,9 @@ export function GestionModules() {
         </button>
       </form>
 
+      {/* Génération IA de tous les modules à partir d'un prompt global */}
+      {modules.length > 0 && <FormationGeneratePanel formationId={formationId} onGenerated={load} />}
+
       {modules.length === 0 ? (
         <p className="py-8 text-center text-slate-400">Aucun module. Ajoutez-en un ci-dessus.</p>
       ) : (
@@ -141,11 +144,16 @@ export function GestionModules() {
 function ModuleContentEditor({ moduleId, onChanged }: { moduleId: number; onChanged: () => void }) {
   const [content, setContent] = useState<ModuleContent | null>(null);
   const [loading, setLoading] = useState(true);
+  // Incrémenté à chaque rechargement pour forcer le remontage des éditeurs (leur état
+  // interne est initialisé depuis les props ; sans remontage, un contenu régénéré ne
+  // s'afficherait pas dans les champs).
+  const [ver, setVer] = useState(0);
 
   const reload = useCallback(async () => {
     setLoading(true);
     try {
       setContent(await api.get<ModuleContent>(`api/modules/${moduleId}`));
+      setVer((v) => v + 1);
     } catch {
       setContent(null);
     } finally {
@@ -167,9 +175,116 @@ function ModuleContentEditor({ moduleId, onChanged }: { moduleId: number; onChan
 
   return (
     <div className="space-y-6">
-      <CoursEditor moduleId={moduleId} cours={content.cours} onSaved={afterChange} />
+      <ModuleGeneratePanel moduleId={moduleId} onGenerated={afterChange} />
+      <CoursEditor key={`cours-${ver}`} moduleId={moduleId} cours={content.cours} onSaved={afterChange} />
       <ExerciceEditor moduleId={moduleId} exercices={content.exercices} onSaved={afterChange} />
-      <ExamenEditor moduleId={moduleId} examens={content.examens} onSaved={afterChange} />
+      <ExamenEditor key={`exam-${ver}`} moduleId={moduleId} examens={content.examens} onSaved={afterChange} />
+    </div>
+  );
+}
+
+// ── Génération IA (formation entière) ─────────────────────────────────────────
+function FormationGeneratePanel({ formationId, onGenerated }: { formationId: number; onGenerated: () => void }) {
+  const [prompt, setPrompt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const generate = async () => {
+    if (!prompt.trim()) return;
+    setBusy(true);
+    setMsg(null);
+    setErr(null);
+    try {
+      const res = await api.post<GenerateAllResult>(`api/formations/${formationId}/generate`, {
+        prompt: prompt.trim(),
+      });
+      setMsg(`✅ Contenu généré pour ${res.modulesGeneres} module(s) : cours, script du prof IA et quiz.`);
+      onGenerated();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Échec de la génération.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-3 rounded-2xl border border-purple-200 bg-purple-50 p-4 shadow-sm">
+      <div className="flex items-center gap-2">
+        <span className="text-2xl">🤖</span>
+        <h2 className="font-bold text-purple-800">Générer tout le contenu avec l'IA</h2>
+      </div>
+      <p className="text-sm text-purple-700">
+        Décrivez le sujet et le public. L'IA rédige, pour <strong>chaque module</strong>, le cours, le
+        script présenté par le prof IA vidéo, et un quiz. Le contenu existant sera remplacé.
+      </p>
+      <textarea
+        className="input min-h-20 bg-white"
+        placeholder="Ex : Formation d'initiation à Python pour débutants. Ton pédagogique, exemples concrets, progression douce."
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+      />
+      <div className="flex items-center gap-3">
+        <button
+          onClick={generate}
+          disabled={busy || !prompt.trim()}
+          className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-60"
+        >
+          {busy && <SpinnerSm />} {busy ? 'Génération en cours…' : '✨ Générer tous les modules'}
+        </button>
+        {msg && <span className="text-sm text-green-700">{msg}</span>}
+        {err && <span className="text-sm text-red-600">{err}</span>}
+      </div>
+    </div>
+  );
+}
+
+// ── Génération IA (un seul module) ────────────────────────────────────────────
+function ModuleGeneratePanel({ moduleId, onGenerated }: { moduleId: number; onGenerated: () => void }) {
+  const [prompt, setPrompt] = useState('');
+  const [busy, setBusy] = useState(false);
+  const [msg, setMsg] = useState<string | null>(null);
+  const [err, setErr] = useState<string | null>(null);
+
+  const generate = async () => {
+    if (!prompt.trim()) return;
+    setBusy(true);
+    setMsg(null);
+    setErr(null);
+    try {
+      const res = await api.post<GeneratedModuleResult>(`api/modules/${moduleId}/generate`, {
+        prompt: prompt.trim(),
+      });
+      setMsg(`✅ Généré : cours + script prof IA + ${res.nbQuestionsGenerees} question(s) de quiz.`);
+      setPrompt('');
+      onGenerated();
+    } catch (e) {
+      setErr(e instanceof ApiError ? e.message : 'Échec de la génération.');
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  return (
+    <div className="space-y-2 rounded-xl border border-purple-200 bg-purple-50 p-4">
+      <h3 className="font-bold text-purple-800">🤖 Générer / régénérer ce module avec l'IA</h3>
+      <textarea
+        className="input min-h-16 bg-white"
+        placeholder="Décrivez ce que ce module doit enseigner (le cours, le script du prof IA et le quiz seront (re)générés)."
+        value={prompt}
+        onChange={(e) => setPrompt(e.target.value)}
+      />
+      <div className="flex items-center gap-3">
+        <button
+          onClick={generate}
+          disabled={busy || !prompt.trim()}
+          className="flex items-center gap-2 rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700 disabled:opacity-60"
+        >
+          {busy && <SpinnerSm />} {busy ? 'Génération…' : '✨ Générer ce module'}
+        </button>
+        {msg && <span className="text-sm text-green-700">{msg}</span>}
+        {err && <span className="text-sm text-red-600">{err}</span>}
+      </div>
     </div>
   );
 }

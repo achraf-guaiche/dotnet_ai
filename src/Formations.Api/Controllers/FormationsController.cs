@@ -1,6 +1,7 @@
 using Formations.Application.Common.Interfaces;
 using Formations.Application.Common.Models;
 using Formations.Application.Formations.DTOs;
+using Formations.Application.Modules.DTOs;
 using Formations.Domain.Entities;
 using Formations.Domain.Enums;
 using Microsoft.AspNetCore.Authorization;
@@ -16,8 +17,39 @@ namespace Formations.Api.Controllers;
 public class FormationsController : ControllerBase
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICourseGenerationService _generator;
 
-    public FormationsController(IApplicationDbContext context) => _context = context;
+    public FormationsController(IApplicationDbContext context, ICourseGenerationService generator)
+    {
+        _context = context;
+        _generator = generator;
+    }
+
+    // Génère (IA) le contenu de TOUS les modules de la formation à partir d'un prompt global.
+    [HttpPost("{id:int}/generate")]
+    [Authorize(Roles = "Admin,Formateur")]
+    public async Task<IActionResult> GenerateAll(int id, [FromBody] GenerateModuleRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Prompt))
+            return BadRequest(new { error = "Le prompt de génération est requis." });
+
+        var formation = await _context.Formations
+            .Include(f => f.Modules)
+            .FirstOrDefaultAsync(f => f.Id == id, ct);
+        if (formation is null) return NotFound();
+        if (formation.Modules.Count == 0)
+            return BadRequest(new { error = "Ajoutez d'abord des modules à la formation avant de générer le contenu." });
+
+        var results = new List<GeneratedModuleResult>();
+        foreach (var module in formation.Modules.OrderBy(m => m.Ordre))
+        {
+            // Chaque module reçoit le prompt global + son propre titre comme contexte.
+            results.Add(await ModulesController.GenerateForModuleAsync(
+                _context, _generator, module, formation.Titre, request.Prompt, ct));
+        }
+
+        return Ok(new { formationId = id, modulesGeneres = results.Count, modules = results });
+    }
 
     [HttpGet]
     public async Task<IActionResult> GetAll(

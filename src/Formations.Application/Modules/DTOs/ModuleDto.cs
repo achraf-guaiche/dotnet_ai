@@ -73,6 +73,13 @@ public record CreateQuestionQuizRequest(int ExamenId, string Enonce, List<string
 
 public record ExamenAttemptRequest(int ExamenId, Dictionary<int, string> Reponses, int DureeSecondes);
 
+// Génération IA du contenu d'un module (cours + script avatar + quiz).
+public record GenerateModuleRequest(string Prompt);
+
+public record GeneratedModuleResult(
+    int ModuleId, string Titre, string Contenu, string TextePourAvatar,
+    int DureeEstimeeMinutes, int NbQuestionsGenerees);
+
 public record QuestionReviewDto(
     int QuestionId, string Enonce, string UserAnswer,
     string BonneReponse, string? Explication, bool IsCorrect, int Points);

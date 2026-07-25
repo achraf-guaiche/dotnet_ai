@@ -7,7 +7,7 @@ using Microsoft.Extensions.Logging;
 
 namespace Formations.Infrastructure.Services;
 
-public class AvatarIAService : IAvatarIAService
+public class AvatarIAService : IAvatarIAService, ICourseGenerationService
 {
     private readonly HttpClient _httpClient;
     private readonly IConfiguration _config;
@@ -151,14 +151,119 @@ public class AvatarIAService : IAvatarIAService
             - Tes réponses seront lues par un avatar IA, donc évite les formatages markdown complexes
             """;
 
-        return provider switch
+        return await CallProviderAsync(provider, userMessage, systemPrompt, history, apiKey!, ct);
+    }
+
+    // Dispatch unique vers le fournisseur LLM configuré (réutilisé par le chat ET la génération).
+    private async Task<string> CallProviderAsync(string provider, string userMessage, string systemPrompt,
+        IEnumerable<ChatMessage> history, string apiKey, CancellationToken ct) => provider switch
+    {
+        "claude" => await CallAnthropicAsync(userMessage, systemPrompt, history, apiKey, ct),
+        "google" => await CallGoogleAsync(userMessage, systemPrompt, history, apiKey, ct),
+        // openai, groq et « llm » (passerelle générique) partagent l'API OpenAI Chat Completions.
+        "openai" or "groq" or "llm" => await CallOpenAiCompatibleAsync(provider, userMessage, systemPrompt, history, apiKey, ct),
+        _ => throw new InvalidOperationException($"Fournisseur LLM inconnu : {provider}")
+    };
+
+    // ── Génération de contenu de module (ICourseGenerationService) ─────────────
+    public async Task<GeneratedCourse> GenerateModuleContentAsync(
+        string prompt, string moduleTitre, string formationTitre, CancellationToken ct = default)
+    {
+        var provider = (_config["LLM:Provider"] ?? "claude").ToLowerInvariant();
+        var apiKey = _config["LLM:ApiKey"];
+
+        // Mode dev / mock : pas de clé → contenu d'exemple déterministe (aucun appel externe).
+        if (string.IsNullOrEmpty(apiKey))
         {
-            "claude" => await CallAnthropicAsync(userMessage, systemPrompt, history, apiKey!, ct),
-            "google" => await CallGoogleAsync(userMessage, systemPrompt, history, apiKey!, ct),
-            // openai, groq et « llm » (passerelle générique) partagent l'API OpenAI Chat Completions.
-            "openai" or "groq" or "llm" => await CallOpenAiCompatibleAsync(provider, userMessage, systemPrompt, history, apiKey!, ct),
-            _ => throw new InvalidOperationException($"Fournisseur LLM inconnu : {provider}")
-        };
+            _logger.LogInformation("[MOCK LLM:{Provider}] Génération de module simulée pour : {Titre}", provider, moduleTitre);
+            return MockGeneratedCourse(prompt, moduleTitre);
+        }
+
+        var system = """
+            Tu es un concepteur pédagogique. À partir de la demande du formateur, tu produis le
+            contenu d'un module de formation. Tu réponds UNIQUEMENT avec un objet JSON valide, sans
+            texte autour, sans bloc de code markdown, au format exact suivant :
+            {
+              "contenu": "<le cours en HTML simple : titres <h2>/<h3>, paragraphes <p>, listes <ul><li>>",
+              "textePourAvatar": "<un script parlé, fluide et sans markdown, que le formateur IA vidéo récitera pour présenter le module (150-300 mots)>",
+              "dureeEstimeeMinutes": <entier>,
+              "quiz": [
+                {"enonce": "<question>", "choix": ["A","B","C","D"], "bonneReponse": "<le texte exact de la bonne option>", "explication": "<courte explication>", "points": 1}
+              ]
+            }
+            Génère entre 3 et 5 questions de quiz. Réponds en français.
+            """;
+        var user = $"Formation : « {formationTitre} ». Module : « {moduleTitre} ». Demande du formateur : {prompt}";
+
+        var raw = await CallProviderAsync(provider, user, system, Array.Empty<ChatMessage>(), apiKey!, ct);
+        return ParseGeneratedCourse(raw, moduleTitre);
+    }
+
+    // Extrait et désérialise le JSON renvoyé par le LLM (tolère les blocs ```json … ```).
+    private GeneratedCourse ParseGeneratedCourse(string raw, string moduleTitre)
+    {
+        try
+        {
+            var json = raw.Trim();
+            var start = json.IndexOf('{');
+            var end = json.LastIndexOf('}');
+            if (start >= 0 && end > start) json = json.Substring(start, end - start + 1);
+
+            var opts = new JsonSerializerOptions { PropertyNameCaseInsensitive = true };
+            var dto = JsonSerializer.Deserialize<GeneratedCourseJson>(json, opts)
+                      ?? throw new InvalidOperationException("JSON vide.");
+
+            var quiz = (dto.Quiz ?? new()).Select(q => new GeneratedQuestion(
+                q.Enonce ?? "", q.Choix ?? new(), q.BonneReponse ?? "", q.Explication,
+                q.Points <= 0 ? 1 : q.Points)).ToList();
+
+            return new GeneratedCourse(
+                dto.Contenu ?? "", dto.TextePourAvatar ?? "",
+                dto.DureeEstimeeMinutes <= 0 ? 15 : dto.DureeEstimeeMinutes, quiz);
+        }
+        catch (Exception ex)
+        {
+            _logger.LogError(ex, "Réponse LLM non parsable pour la génération du module {Titre} — repli mock", moduleTitre);
+            return MockGeneratedCourse("(réponse IA non exploitable)", moduleTitre);
+        }
+    }
+
+    private static GeneratedCourse MockGeneratedCourse(string prompt, string moduleTitre) => new(
+        Contenu: $"<h2>{moduleTitre}</h2><p>Contenu généré (mode démo) à partir de la consigne : " +
+                 $"<em>{System.Net.WebUtility.HtmlEncode(prompt)}</em>.</p><ul><li>Notion clé 1</li>" +
+                 "<li>Notion clé 2</li><li>Notion clé 3</li></ul>",
+        TextePourAvatar: $"Bonjour et bienvenue dans le module « {moduleTitre} ». Dans cette présentation, " +
+                 "nous allons découvrir les notions essentielles, étape par étape. N'hésitez pas à me poser " +
+                 "vos questions à tout moment grâce au chat.",
+        DureeEstimeeMinutes: 15,
+        Quiz: new()
+        {
+            new("Quelle est la première notion clé abordée dans ce module ?",
+                new() { "Notion clé 1", "Notion clé 2", "Notion clé 3", "Aucune" }, "Notion clé 1",
+                "C'est la première notion présentée.", 1),
+            new("Combien de notions clés sont présentées ?",
+                new() { "1", "2", "3", "4" }, "3", "Le module en présente trois.", 1),
+            new("Comment poser une question pendant la présentation ?",
+                new() { "Par email", "Via le chat", "En appelant", "Impossible" }, "Via le chat",
+                "Le prof IA répond en direct dans le chat.", 1),
+        });
+
+    // Miroir de désérialisation (souple face aux variations de casse/champ du LLM).
+    private sealed class GeneratedCourseJson
+    {
+        public string? Contenu { get; set; }
+        public string? TextePourAvatar { get; set; }
+        public int DureeEstimeeMinutes { get; set; }
+        public List<GeneratedQuestionJson>? Quiz { get; set; }
+    }
+
+    private sealed class GeneratedQuestionJson
+    {
+        public string? Enonce { get; set; }
+        public List<string>? Choix { get; set; }
+        public string? BonneReponse { get; set; }
+        public string? Explication { get; set; }
+        public int Points { get; set; }
     }
 
     // Lit une clé de config en traitant la chaîne vide (env var non renseignée) comme absente.

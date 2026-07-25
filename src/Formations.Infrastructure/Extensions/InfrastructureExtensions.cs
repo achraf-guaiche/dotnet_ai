@@ -37,6 +37,12 @@ public static class InfrastructureExtensions
             client.Timeout = TimeSpan.FromSeconds(30);
         });
 
+        // Génération de contenu (même implémentation, client HTTP dédié — génération plus longue).
+        services.AddHttpClient<ICourseGenerationService, AvatarIAService>(client =>
+        {
+            client.Timeout = TimeSpan.FromSeconds(90);
+        });
+
         return services;
     }
 }

@@ -175,6 +175,22 @@ export interface ExamenDto {
   isActif: boolean;
 }
 
+// Génération IA du contenu d'un module
+export interface GeneratedModuleResult {
+  moduleId: number;
+  titre: string;
+  contenu: string;
+  textePourAvatar: string;
+  dureeEstimeeMinutes: number;
+  nbQuestionsGenerees: number;
+}
+
+export interface GenerateAllResult {
+  formationId: number;
+  modulesGeneres: number;
+  modules: GeneratedModuleResult[];
+}
+
 // Réponse de GET /api/modules/{id}
 export interface ModuleContent {
   module: ModuleDto;

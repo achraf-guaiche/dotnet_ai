@@ -15,8 +15,67 @@ namespace Formations.Api.Controllers;
 public class ModulesController : ControllerBase
 {
     private readonly IApplicationDbContext _context;
+    private readonly ICourseGenerationService _generator;
 
-    public ModulesController(IApplicationDbContext context) => _context = context;
+    public ModulesController(IApplicationDbContext context, ICourseGenerationService generator)
+    {
+        _context = context;
+        _generator = generator;
+    }
+
+    // Génère (IA) et persiste le cours + le script avatar + le quiz d'un module.
+    // Réutilisé par la génération au niveau formation (voir FormationsController).
+    internal static async Task<GeneratedModuleResult> GenerateForModuleAsync(
+        IApplicationDbContext context, ICourseGenerationService generator,
+        Module module, string formationTitre, string prompt, CancellationToken ct)
+    {
+        var generated = await generator.GenerateModuleContentAsync(prompt, module.Titre, formationTitre, ct);
+
+        // Upsert du cours.
+        var cours = await context.Cours.FirstOrDefaultAsync(c => c.ModuleId == module.Id, ct);
+        if (cours is null)
+        {
+            cours = new Cours { ModuleId = module.Id };
+            context.Cours.Add(cours);
+        }
+        cours.Contenu = generated.Contenu;
+        cours.TextePourAvatar = generated.TextePourAvatar;
+        cours.DureeEstimeeMinutes = generated.DureeEstimeeMinutes;
+        cours.UpdatedAt = DateTime.UtcNow;
+
+        // Un examen par module (créé si absent) ; ses questions sont remplacées par celles générées.
+        var examen = await context.Examens.Include(e => e.Questions)
+            .FirstOrDefaultAsync(e => e.ModuleId == module.Id, ct);
+        if (examen is null)
+        {
+            examen = new Examen { ModuleId = module.Id, Titre = $"Quiz — {module.Titre}" };
+            context.Examens.Add(examen);
+        }
+        else if (examen.Questions.Count > 0)
+        {
+            context.QuestionsQuiz.RemoveRange(examen.Questions);
+        }
+
+        var ordre = 1;
+        foreach (var q in generated.Quiz)
+        {
+            context.QuestionsQuiz.Add(new QuestionQuiz
+            {
+                Examen = examen,
+                Enonce = q.Enonce,
+                Choix = JsonSerializer.Serialize(q.Choix),
+                BonneReponse = q.BonneReponse,
+                Explication = q.Explication,
+                Points = q.Points,
+                Ordre = ordre++,
+            });
+        }
+
+        await context.SaveChangesAsync(ct);
+
+        return new GeneratedModuleResult(module.Id, module.Titre, generated.Contenu,
+            generated.TextePourAvatar, generated.DureeEstimeeMinutes, generated.Quiz.Count);
+    }
 
     [HttpGet("formation/{formationId:int}")]
     public async Task<IActionResult> GetByFormation(int formationId, CancellationToken ct)
@@ -136,6 +195,22 @@ public class ModulesController : ControllerBase
         cours.UpdatedAt = DateTime.UtcNow;
         await _context.SaveChangesAsync(ct);
         return Ok(new { id = cours.Id });
+    }
+
+    // Génère (ou régénère) le contenu IA d'un module à partir d'un prompt.
+    [HttpPost("{moduleId:int}/generate")]
+    [Authorize(Roles = "Admin,Formateur")]
+    public async Task<IActionResult> GenerateModule(int moduleId, [FromBody] GenerateModuleRequest request, CancellationToken ct)
+    {
+        if (string.IsNullOrWhiteSpace(request.Prompt))
+            return BadRequest(new { error = "Le prompt de génération est requis." });
+
+        var module = await _context.Modules.Include(m => m.Formation)
+            .FirstOrDefaultAsync(m => m.Id == moduleId, ct);
+        if (module is null) return NotFound();
+
+        var result = await GenerateForModuleAsync(_context, _generator, module, module.Formation.Titre, request.Prompt, ct);
+        return Ok(result);
     }
 
     [HttpPost("{moduleId:int}/exercices")]
