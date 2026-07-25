@@ -114,10 +114,12 @@ public class AdminController : ControllerBase
         [FromQuery] int page = 1,
         [FromQuery] int pageSize = 50,
         [FromQuery] string? userId = null,
+        [FromQuery] string? action = null,
         CancellationToken ct = default)
     {
         var query = _context.ActivityLogs.Include(a => a.User).AsQueryable();
         if (!string.IsNullOrEmpty(userId)) query = query.Where(a => a.UserId == userId);
+        if (!string.IsNullOrEmpty(action)) query = query.Where(a => a.Action == action);
 
         var total = await query.CountAsync(ct);
         var logs = await query
