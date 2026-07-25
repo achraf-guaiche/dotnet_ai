@@ -1,6 +1,18 @@
 # Plateforme de Gestion des Formations
 
-Application web complète de gestion des formations avec formateur IA intégré (Anam.ai + Claude API).
+**Application web de formation en ligne (e-learning) avec un formateur IA vidéo interactif.**
+
+La plateforme permet à des **formateurs** de créer des formations (modules, cours, exercices, quiz)
+— y compris en **générant le contenu automatiquement par IA** à partir d'un simple prompt — et à des
+**apprenants** de suivre ces formations, de dialoguer avec un **prof IA en vidéo temps réel**
+(avatar Anam.ai + dialogue Claude/OpenAI/Gemini/Groq), de faire les exercices, de passer les quiz,
+de suivre leur **progression** et d'obtenir un **certificat PDF**.
+
+Stack : **ASP.NET Core 8** (API REST, Clean Architecture) · **React** (Vite + TypeScript + Tailwind) ·
+**MySQL 8** (EF Core / Pomelo) · **Docker** · Auth **JWT** avec rôles.
+
+> ▶️ **Pressé ?** Voir [Démarrage rapide (Docker)](#démarrage-rapide-docker) et
+> [Rôles et permissions](#rôles-et-permissions).
 
 [![CI](https://github.com/<votre-org>/<votre-repo>/actions/workflows/ci.yml/badge.svg)](https://github.com/<votre-org>/<votre-repo>/actions)
 
@@ -43,19 +55,96 @@ formations/
 
 ## Fonctionnalités
 
-### ✅ Implémentées (Sprint 0 → 6)
+- **Authentification** : inscription (choix du rôle Apprenant/Formateur), connexion JWT,
+  refresh token, réinitialisation de mot de passe, profil. Modération formateur optionnelle par
+  code d'invitation.
+- **Rôles** : Admin / Formateur / Apprenant (voir [Rôles et permissions](#rôles-et-permissions)).
+- **Catégories & Formateurs** : CRUD, profils formateurs associés aux formations.
+- **Formations & Modules** : CRUD, statuts (brouillon/publié), filtres, pagination, modules ordonnés.
+- **Contenu pédagogique** : cours (HTML riche / vidéo / PDF), exercices (texte libre, choix multiple),
+  examens QCM (score automatique, tentatives et temps limités).
+- **🤖 Génération par IA** : à partir d'un prompt, le formateur génère automatiquement le cours,
+  le script du prof IA vidéo, les exercices et le quiz — par module **ou** pour toute la formation.
+- **🎥 Formateur IA vidéo** : avatar temps réel (Anam.ai, mode mock intégré) qui présente le module
+  et répond dans un **chat** ; dialogue propulsé par le LLM configurable (Claude / OpenAI / Gemini / Groq).
+- **Parcours apprenant** : inscription, suivi du cours, exercices et quiz **enregistrés**
+  (consultables et recommençables), **progression** automatique (module complété = quiz réussi +
+  exercices corrects), **certificat PDF** à 100 %.
+- **Administration** : dashboard statistiques, gestion des utilisateurs (rôles, activation),
+  journal d'activité filtrable.
+- **Données de démonstration** : 3 formations complètes chargées au premier démarrage.
 
-- **Auth** : Inscription, connexion JWT, refresh token, réinitialisation MDP, profil
-- **Rôles** : Admin / Formateur / Apprenant
-- **Catégories** : CRUD avec protection suppression
-- **Formateurs** : Profil, spécialités, association aux formations
-- **Formations** : CRUD, statuts (brouillon/publié), filtres, pagination
-- **Modules** : CRUD ordonnés, cours (rich text/vidéo/PDF)
-- **Exercices** : Texte libre, choix multiple, upload fichier
-- **Examens QCM** : Questions, score automatique, tentatives limitées, temps limité
-- **Inscriptions** : Auto-inscription, suivi progression, certificat PDF
-- **Avatar IA** : Intégration Anam.ai (+ mode mock), dialogue via Claude API, historique sessions
-- **Admin** : Dashboard stats, gestion utilisateurs, logs d'activité
+---
+
+## Démarrage rapide (Docker)
+
+Le seul prérequis est **Docker** (avec Docker Compose). Aucun autre outil à installer.
+
+```bash
+# 1. Cloner le dépôt
+git clone <url-du-repo> && cd dotnet_ai
+
+# 2. Créer le fichier d'environnement (les valeurs par défaut suffisent pour un essai local)
+cp .env.example .env
+
+# 3. Construire et lancer toute la stack (API + MySQL + frontend React)
+docker compose up --build
+```
+
+Une fois les conteneurs démarrés :
+
+| Service | URL |
+|---|---|
+| **Application (frontend React)** | http://localhost:5002 |
+| **API + Swagger** | http://localhost:5000/swagger |
+| **Santé de l'API** | http://localhost:5000/health |
+| Base MySQL (hôte) | `localhost:33006` |
+
+**Compte administrateur** créé automatiquement : `admin@formations.local` / `Admin@1234!`
+(les **3 formations de démonstration** sont chargées au premier démarrage sur base vide).
+
+> Développement avec rechargement à chaud du frontend (Vite) :
+> `docker compose -f docker-compose.yml -f docker-compose.dev.yml up`
+>
+> Recharger les données de démo (⚠️ réinitialise la base) : `docker compose down -v && docker compose up --build`
+
+Sans clé d'API configurée, l'app tourne en **mode démo** : le prof IA et la génération de contenu
+renvoient des réponses simulées (aucun appel externe). Voir [Variables d'environnement](#variables-denvironnement)
+pour brancher les vraies clés (Anam.ai, Claude/OpenAI/Gemini/Groq).
+
+---
+
+## Rôles et permissions
+
+L'application distingue trois rôles. Le rôle est choisi à l'inscription (Apprenant ou Formateur) ;
+le rôle **Admin** n'est attribué que par un administrateur.
+
+### 👨‍🎓 Apprenant (par défaut à l'inscription)
+- Parcourir le catalogue des formations publiées (filtres par catégorie, niveau, recherche).
+- S'inscrire à une formation et accéder à son contenu.
+- Suivre les **cours** (texte, vidéo, PDF).
+- Faire les **exercices** et passer les **quiz** : les tentatives sont **enregistrées**,
+  consultables et **recommençables**.
+- Dialoguer avec le **formateur IA vidéo** (chat) sur chaque module.
+- Suivre sa **progression** (mise à jour automatiquement) et télécharger son **certificat PDF** à 100 %.
+- Gérer son profil.
+
+### 👨‍🏫 Formateur
+- Tout ce qu'un utilisateur connecté peut faire, **plus la création de contenu** :
+- Créer / modifier / **supprimer** des formations, modules, cours, exercices, examens et questions.
+- **Générer le contenu par IA** à partir d'un prompt (cours + script du prof IA + exercices + quiz),
+  par module ou pour toute la formation.
+- **Prévisualiser** un module comme un apprenant (bouton « 👁️ Aperçu »).
+- Être associé à des formations. *(Un formateur ne s'inscrit pas aux formations : il les gère.)*
+
+### 🛠️ Administrateur
+- Tout ce qu'un formateur peut faire, **plus la gestion de la plateforme** :
+- **Dashboard** : statistiques globales (formations, apprenants, formateurs, taux de complétion).
+- **Gestion des utilisateurs** : changer les rôles (y compris promouvoir Formateur/Admin), activer/désactiver un compte.
+- **Journal d'activité** : consulter les actions horodatées (filtrable par utilisateur/action).
+- Gérer les catégories et l'ensemble du contenu.
+
+Compte admin par défaut : `admin@formations.local` / `Admin@1234!`.
 
 ---
 
@@ -297,7 +386,40 @@ Il simule les sessions et les réponses IA sans appel externe.
 
 ---
 
-## Déploiement Railway
+## Déploiement sur un serveur
+
+Deux options selon l'infrastructure. Dans les deux cas, **utilisez des secrets de production**
+(clé JWT ≥ 32 caractères, mots de passe MySQL forts) et **changez le mot de passe admin par défaut**.
+
+### Option A — Serveur / VPS avec Docker Compose (recommandé, autonome)
+
+Sur n'importe quel serveur Linux disposant de Docker :
+
+```bash
+# 1. Récupérer le code
+git clone <url-du-repo> && cd dotnet_ai
+
+# 2. Renseigner les secrets de production dans .env
+cp .env.example .env
+nano .env   # Jwt__Key, MYSQL_PASSWORD, clés API (AvatarIA__ApiKey, LLM__ApiKey), SMTP…
+
+# 3. Lancer en arrière-plan
+docker compose up --build -d
+
+# 4. Vérifier
+docker compose ps
+curl http://localhost:5000/health
+```
+
+- Les **migrations EF s'appliquent automatiquement au démarrage** et les données de démo sont
+  insérées sur base vide.
+- Placez un **reverse proxy HTTPS** (Nginx, Caddy, Traefik) devant les ports `5002` (frontend) et
+  `5000` (API), et pointez un nom de domaine dessus.
+- Pour reconstruire le frontend avec l'URL publique de l'API :
+  `VITE_API_URL=https://api.mondomaine.com docker compose up --build -d web`
+  (l'URL de l'API est figée au build du frontend).
+
+### Option B — Railway (PaaS managé)
 
 ### Prérequis
 - Compte Railway (https://railway.app)
