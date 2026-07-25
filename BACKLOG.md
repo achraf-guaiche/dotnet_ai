@@ -47,7 +47,8 @@
   - Réalisé : page React `/admin/utilisateurs` (rôle via select, activer/désactiver, pagination)
 - [x] **US-09** En tant qu'admin, je veux consulter les logs d'activité.
   - Critères : liste des actions horodatées, filtre par utilisateur/action
-  - Réalisé : `GET /api/admin/logs` paginé, filtres `userId` **et** `action`, tri par date décroissante
+  - Réalisé : `GET /api/admin/logs` paginé, filtres `userId` **et** `action`, tri par date décroissante ;
+    page React `/admin/logs` (tableau horodaté, filtre par action, pagination) + accès depuis le dashboard
 
 ---
 

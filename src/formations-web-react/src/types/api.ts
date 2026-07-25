@@ -302,3 +302,12 @@ export interface AdminUser {
   createdAt: string;
   nbInscriptions: number;
 }
+
+export interface ActivityLog {
+  id: number;
+  userFullName?: string | null;
+  action: string;
+  details?: string | null;
+  ipAddress?: string | null;
+  createdAt: string;
+}

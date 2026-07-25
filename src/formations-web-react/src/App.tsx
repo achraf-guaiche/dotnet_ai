@@ -11,6 +11,7 @@ import { AvatarSession } from './pages/AvatarSession';
 import { ModuleLearn } from './pages/ModuleLearn';
 import { AdminDashboard } from './pages/AdminDashboard';
 import { AdminUsers } from './pages/AdminUsers';
+import { AdminLogs } from './pages/AdminLogs';
 import { GestionFormations } from './pages/GestionFormations';
 import { GestionModules } from './pages/GestionModules';
 import { NotFound } from './pages/NotFound';
@@ -78,6 +79,14 @@ export default function App() {
           element={
             <ProtectedRoute role="Admin">
               <AdminUsers />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/admin/logs"
+          element={
+            <ProtectedRoute role="Admin">
+              <AdminLogs />
             </ProtectedRoute>
           }
         />

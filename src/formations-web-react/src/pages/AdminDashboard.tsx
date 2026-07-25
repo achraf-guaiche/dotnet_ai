@@ -86,6 +86,7 @@ export function AdminDashboard() {
       {/* Navigation admin */}
       <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
         <NavCard to="/admin/utilisateurs" label="👤 Gérer les utilisateurs" />
+        <NavCard to="/admin/logs" label="📜 Journal d'activité" />
         <NavCard to="/formations" label="📚 Voir les formations" />
       </div>
     </div>
