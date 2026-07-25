@@ -93,6 +93,15 @@ public class AdminController : ControllerBase
         await _userManager.RemoveFromRolesAsync(user, currentRoles);
         await _userManager.AddToRoleAsync(user, request.Role);
 
+        // Une promotion en Formateur doit créer la fiche Formateur (cohérent avec l'inscription,
+        // US-36) : sans elle, le compte ne peut pas être rattaché à des formations.
+        if (request.Role == "Formateur"
+            && !await _context.Formateurs.AnyAsync(f => f.UserId == user.Id, ct))
+        {
+            _context.Formateurs.Add(new Formateur { UserId = user.Id });
+            await _context.SaveChangesAsync(ct);
+        }
+
         return Ok(new { message = $"Rôle changé en {request.Role} pour {user.Email}." });
     }
 

@@ -207,11 +207,14 @@
   - Corrigé (Sprint 9) : intégration `@anam-ai/js-sdk` dans `AvatarSession.tsx`.
 - [ ] **BUG-03** Les appels réels OpenAI / Google / Groq ne sont pas testés (aucune clé
   disponible lors du développement) — seules les formes de requête/réponse documentées sont implémentées.
-- [ ] **DETTE-01** Ajouter des tests unitaires sur les services métier (inscriptions, scoring
-  d'examen, provider LLM) — 13 tests actuellement, centrés sur Auth/JWT/rôles.
+- [~] **DETTE-01** Tests unitaires des services métier — **26 tests** désormais.
+  - Couvert : scoring d'examen (pondération par points, casse/espaces, `TentativesMax`, 404),
+    progression d'inscription (%, complétion + certificat, plancher/plafond, isolation par
+    utilisateur), attribution de rôle. Reste : appels provider LLM (dépend de BUG-03, clés requises).
 - [ ] **DETTE-02** Déploiement Railway non vérifié de bout en bout.
-- [ ] **DETTE-03** L'attribution du rôle `Formateur` par un admin (`PUT /api/admin/users/{id}/role`)
-  ne crée pas la fiche `Formateur` correspondante, contrairement à l'inscription (US-36).
+- [x] ~~**DETTE-03** L'attribution du rôle `Formateur` par un admin ne crée pas la fiche `Formateur`.~~
+  - Corrigé : `AdminController.ChangeRole` crée la fiche `Formateur` (si absente) lors d'une
+    promotion en Formateur, comme à l'inscription (US-36). Testé (`ChangeRoleTests`, 3 cas).
 - [ ] **DETTE-04** Modération des inscriptions formateur : aujourd'hui n'importe qui peut se
   déclarer formateur. Prévoir une validation par un admin (compte en attente) ou un code d'invitation.
 
