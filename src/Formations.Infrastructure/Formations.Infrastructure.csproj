@@ -11,6 +11,11 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- Données de démarrage (formations/modules/cours/exercices/quiz) embarquées dans l'assembly. -->
+    <EmbeddedResource Include="Persistence\SeedData\formations.seed.json" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Microsoft.AspNetCore.Identity.EntityFrameworkCore" Version="8.0.8" />
     <PackageReference Include="Microsoft.EntityFrameworkCore" Version="8.0.8" />
     <!-- AddHttpClient (IHttpClientFactory) pour l'intégration Avatar IA / LLM -->

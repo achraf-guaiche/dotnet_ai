@@ -243,6 +243,17 @@
 
 ---
 
+## 🔧 Correctifs & outillage
+
+- [x] **FIX** Suppression d'un module impossible pour un formateur : l'endpoint
+  `DELETE /api/modules/{id}` était restreint à `Admin` alors que la création/gestion est ouverte
+  aux formateurs → passé à `Admin,Formateur` (le cascade DB supprime cours/exercices/quiz/résultats).
+- [x] **SEED** Données de démonstration : `formations.seed.json` (embarqué) chargé par `DbSeeder`
+  au démarrage sur base vide — 3 formations (Web / Data / DevOps) avec modules, cours, script avatar,
+  exercices et quiz. Testé (`SeedDataTests`, 3 cas). Rechargement : `docker compose down -v` puis `up`.
+
+---
+
 ## ⚠️ Dette technique / À corriger au prochain sprint
 
 - [x] ~~**BUG-01** `POST /api/avatar/sessions/message` renvoie 500 (Anam `POST /v1/sessions/speak` → 405).~~

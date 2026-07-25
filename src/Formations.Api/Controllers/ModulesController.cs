@@ -167,7 +167,7 @@ public class ModulesController : ControllerBase
     }
 
     [HttpDelete("{id:int}")]
-    [Authorize(Roles = "Admin")]
+    [Authorize(Roles = "Admin,Formateur")]
     public async Task<IActionResult> Delete(int id, CancellationToken ct)
     {
         var module = await _context.Modules.FindAsync([id], ct);

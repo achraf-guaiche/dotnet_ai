@@ -1,0 +1,146 @@
+{
+  "formations": [
+    {
+      "titre": "Introduction au Développement Web",
+      "description": "Apprenez les fondations du web moderne : HTML, CSS et JavaScript, de zéro jusqu'à votre première page interactive.",
+      "categorie": "Développement Web",
+      "niveau": "Debutant",
+      "dureeHeures": 18,
+      "prix": 0,
+      "statut": "Publie",
+      "objectifs": "Créer des pages web structurées, les styliser et les rendre interactives.",
+      "prerequis": "Aucun prérequis technique. Un ordinateur et de la curiosité suffisent.",
+      "modules": [
+        {
+          "titre": "Les bases du HTML",
+          "ordre": 1,
+          "description": "Structurer une page avec les balises essentielles.",
+          "cours": {
+            "contenu": "<h2>Le HTML, squelette du web</h2><p>Le HTML (HyperText Markup Language) décrit la structure d'une page web à l'aide de <strong>balises</strong>.</p><h3>Balises essentielles</h3><ul><li><code>&lt;h1&gt;</code> à <code>&lt;h6&gt;</code> : les titres</li><li><code>&lt;p&gt;</code> : un paragraphe</li><li><code>&lt;a&gt;</code> : un lien</li><li><code>&lt;ul&gt;</code>/<code>&lt;li&gt;</code> : une liste</li></ul>",
+            "textePourAvatar": "Bienvenue dans ce premier module ! Nous allons découvrir le HTML, le langage qui donne sa structure à toute page web. Ensemble, nous verrons les balises de titre, de paragraphe, de lien et de liste. À la fin, vous saurez écrire votre première page. Posez-moi vos questions à tout moment !",
+            "dureeEstimeeMinutes": 20
+          },
+          "exercices": [
+            { "enonce": "Quelle balise utilise-t-on pour le titre principal d'une page ?", "typeReponse": "TexteLibre", "reponseCorrecte": "h1", "points": 10 },
+            { "enonce": "Écrivez la balise ouvrante d'un paragraphe.", "typeReponse": "TexteLibre", "reponseCorrecte": "<p>", "points": 10 }
+          ],
+          "examens": [
+            {
+              "titre": "Quiz — Les bases du HTML",
+              "dureeMinutes": 10,
+              "noteMinPassage": 60,
+              "tentativesMax": 3,
+              "questions": [
+                { "enonce": "Que signifie HTML ?", "choix": ["HyperText Markup Language", "High Tech Modern Language", "Home Tool Markup Language", "Hyperlink Text Mode"], "bonneReponse": "HyperText Markup Language", "explication": "HTML = HyperText Markup Language.", "points": 1 },
+                { "enonce": "Quelle balise crée un lien ?", "choix": ["<link>", "<a>", "<href>", "<url>"], "bonneReponse": "<a>", "explication": "La balise <a> (anchor) crée un lien.", "points": 1 },
+                { "enonce": "Combien de niveaux de titres existe-t-il en HTML ?", "choix": ["3", "5", "6", "10"], "bonneReponse": "6", "explication": "De <h1> à <h6>.", "points": 1 }
+              ]
+            }
+          ]
+        },
+        {
+          "titre": "Styliser avec CSS",
+          "ordre": 2,
+          "description": "Donner vie à vos pages avec des couleurs et une mise en page.",
+          "cours": {
+            "contenu": "<h2>Le CSS, l'habillage du web</h2><p>Le CSS (Cascading Style Sheets) contrôle l'apparence : couleurs, polices, espacements et mise en page.</p><h3>Une règle CSS</h3><p>Un sélecteur, une propriété, une valeur :</p><pre>p { color: navy; font-size: 16px; }</pre>",
+            "textePourAvatar": "Dans ce module, nous ajoutons du style à nos pages grâce au CSS. Vous apprendrez à changer les couleurs, les polices et à organiser la mise en page. Le CSS transforme une page brute en une interface agréable.",
+            "dureeEstimeeMinutes": 25
+          },
+          "exercices": [
+            { "enonce": "Quelle propriété CSS change la couleur du texte ?", "typeReponse": "TexteLibre", "reponseCorrecte": "color", "points": 10 }
+          ],
+          "examens": [
+            {
+              "titre": "Quiz — CSS",
+              "dureeMinutes": 10,
+              "noteMinPassage": 60,
+              "tentativesMax": 3,
+              "questions": [
+                { "enonce": "Que signifie CSS ?", "choix": ["Cascading Style Sheets", "Computer Styled Sections", "Creative Style System", "Colorful Style Sheets"], "bonneReponse": "Cascading Style Sheets", "explication": "CSS = Cascading Style Sheets.", "points": 1 },
+                { "enonce": "Quelle propriété modifie la taille du texte ?", "choix": ["text-size", "font-size", "size", "text-height"], "bonneReponse": "font-size", "explication": "font-size définit la taille de police.", "points": 1 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Python pour la Data Science",
+      "description": "Manipulez les données avec Python, des bases du langage aux premières analyses.",
+      "categorie": "Data Science",
+      "niveau": "Intermediaire",
+      "dureeHeures": 30,
+      "prix": 49.90,
+      "statut": "Publie",
+      "objectifs": "Écrire du code Python, manipuler des structures de données et réaliser une première analyse.",
+      "prerequis": "Bases de programmation recommandées.",
+      "modules": [
+        {
+          "titre": "Les fondamentaux de Python",
+          "ordre": 1,
+          "description": "Variables, types et structures de contrôle.",
+          "cours": {
+            "contenu": "<h2>Python, un langage clair et puissant</h2><p>Python est réputé pour sa lisibilité. On y manipule des <strong>variables</strong> sans déclarer leur type.</p><pre>age = 25\nnom = \"Alice\"\nif age &gt;= 18:\n    print(nom, \"est majeur\")</pre>",
+            "textePourAvatar": "Découvrons Python, un langage à la syntaxe claire, très utilisé en data science. Nous verrons les variables, les types de base et les structures conditionnelles. Vous écrirez vos premières lignes de code dès ce module.",
+            "dureeEstimeeMinutes": 30
+          },
+          "exercices": [
+            { "enonce": "Quel mot-clé démarre une condition en Python ?", "typeReponse": "TexteLibre", "reponseCorrecte": "if", "points": 10 },
+            { "enonce": "Écrivez la fonction qui affiche du texte à l'écran.", "typeReponse": "TexteLibre", "reponseCorrecte": "print", "points": 10 }
+          ],
+          "examens": [
+            {
+              "titre": "Quiz — Fondamentaux Python",
+              "dureeMinutes": 12,
+              "noteMinPassage": 60,
+              "tentativesMax": 3,
+              "questions": [
+                { "enonce": "Comment déclare-t-on une variable en Python ?", "choix": ["var x = 1", "x = 1", "int x = 1", "let x = 1"], "bonneReponse": "x = 1", "explication": "Python infère le type automatiquement.", "points": 1 },
+                { "enonce": "Quel type représente un nombre à virgule ?", "choix": ["int", "float", "str", "bool"], "bonneReponse": "float", "explication": "float = nombre à virgule flottante.", "points": 1 }
+              ]
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "titre": "Docker de A à Z",
+      "description": "Conteneurisez vos applications et maîtrisez les fondamentaux de Docker.",
+      "categorie": "DevOps",
+      "niveau": "Intermediaire",
+      "dureeHeures": 15,
+      "prix": 39.00,
+      "statut": "Publie",
+      "objectifs": "Comprendre les images et conteneurs, écrire un Dockerfile et lancer des services.",
+      "prerequis": "Être à l'aise avec la ligne de commande.",
+      "modules": [
+        {
+          "titre": "Images et conteneurs",
+          "ordre": 1,
+          "description": "Les concepts fondamentaux de Docker.",
+          "cours": {
+            "contenu": "<h2>Docker : images et conteneurs</h2><p>Une <strong>image</strong> est un modèle en lecture seule ; un <strong>conteneur</strong> est une instance exécutée de cette image.</p><pre>docker run -d -p 8080:80 nginx</pre>",
+            "textePourAvatar": "Bienvenue dans ce module Docker ! Nous allons distinguer deux notions clés : l'image, qui est un modèle figé, et le conteneur, qui est une exécution de cette image. Vous apprendrez à lancer votre premier conteneur.",
+            "dureeEstimeeMinutes": 20
+          },
+          "exercices": [
+            { "enonce": "Quelle commande lance un conteneur à partir d'une image ?", "typeReponse": "TexteLibre", "reponseCorrecte": "docker run", "points": 10 }
+          ],
+          "examens": [
+            {
+              "titre": "Quiz — Docker",
+              "dureeMinutes": 10,
+              "noteMinPassage": 60,
+              "tentativesMax": 3,
+              "questions": [
+                { "enonce": "Un conteneur est...", "choix": ["Une machine virtuelle complète", "Une instance exécutée d'une image", "Un fichier de configuration", "Un registre d'images"], "bonneReponse": "Une instance exécutée d'une image", "explication": "Le conteneur est l'exécution d'une image.", "points": 1 },
+                { "enonce": "Quel fichier décrit la construction d'une image ?", "choix": ["docker-compose.yml", "Dockerfile", "image.json", "container.cfg"], "bonneReponse": "Dockerfile", "explication": "Le Dockerfile décrit l'image.", "points": 1 }
+              ]
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
