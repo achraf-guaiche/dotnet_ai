@@ -74,7 +74,13 @@ builder.Services.AddCors(options =>
         var allowedOrigins = builder.Configuration.GetSection("Cors:Origins").Get<string[]>()
             ?? ["http://localhost:3000", "http://localhost:5002", "https://localhost:5003"];
 
-        policy.WithOrigins(allowedOrigins)
+        // Cors__ExtraOrigins permet d'ajouter des origines Railway/prod sans modifier le code.
+        // Exemple Railway : Cors__ExtraOrigins=https://mon-frontend.up.railway.app
+        var extra = builder.Configuration["Cors:ExtraOrigins"]?
+            .Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            ?? [];
+
+        policy.WithOrigins([.. allowedOrigins, .. extra])
             .AllowAnyHeader()
             .AllowAnyMethod()
             .AllowCredentials();

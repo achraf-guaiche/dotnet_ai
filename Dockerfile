@@ -40,12 +40,12 @@ COPY --from=publish --chown=appuser:appuser /app/publish .
 RUN mkdir -p /app/logs
 
 EXPOSE 8080
-EXPOSE 8081
 
-ENV ASPNETCORE_URLS=http://+:8080
 ENV DOTNET_RUNNING_IN_CONTAINER=true
 
+# Railway injecte $PORT ; ASPNETCORE_HTTP_PORTS le consomme directement (ASP.NET Core 8).
+# Fallback 8080 pour docker-compose local.
 HEALTHCHECK --interval=30s --timeout=10s --start-period=60s --retries=3 \
-    CMD curl -f http://localhost:8080/health || exit 1
+    CMD curl -f http://localhost:${PORT:-8080}/health || exit 1
 
-ENTRYPOINT ["dotnet", "Formations.Api.dll"]
+ENTRYPOINT ["/bin/sh", "-c", "ASPNETCORE_HTTP_PORTS=${PORT:-8080} exec dotnet Formations.Api.dll"]
