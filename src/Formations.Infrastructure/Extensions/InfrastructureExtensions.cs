@@ -16,8 +16,11 @@ public static class InfrastructureExtensions
             ?? config["ConnectionStrings__Default"]
             ?? "server=localhost;database=formations_db;user=formations_user;password=UserPasswordFort!";
 
+        // Version fixe MySQL 8 — évite AutoDetect qui ouvre une connexion TCP
+        // au moment de la résolution du service (bloque le healthcheck si la DB est absente).
+        var serverVersion = new MySqlServerVersion(new Version(8, 0, 36));
         services.AddDbContext<ApplicationDbContext>(options =>
-            options.UseMySql(connectionString, ServerVersion.AutoDetect(connectionString),
+            options.UseMySql(connectionString, serverVersion,
                 mysql =>
                 {
                     mysql.EnableRetryOnFailure(3);
